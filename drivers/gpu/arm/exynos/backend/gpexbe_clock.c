@@ -18,6 +18,7 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+#include <linux/printk.h>
 #include <soc/samsung/cal-if.h>
 
 #include <gpexbe_devicetree.h>
@@ -36,7 +37,11 @@ static unsigned int cal_id;
 
 int gpexbe_clock_get_level_num(void)
 {
-	return cal_dfs_get_lv_num(cal_id);
+	int levels = cal_dfs_get_lv_num(cal_id);
+
+	pr_info("[gpexbe] cal_id %u reports %d DVFS levels\n", cal_id, levels);
+
+	return levels;
 }
 
 int gpexbe_clock_get_rate_asv_table(struct freq_volt *fv_array, int level_num)
@@ -47,14 +52,24 @@ int gpexbe_clock_get_rate_asv_table(struct freq_volt *fv_array, int level_num)
 
 	ret = cal_dfs_get_rate_asv_table(cal_id, rate_volt);
 
+	pr_info("[gpexbe] cal_id %u ASV table entries requested: %d\n",
+		cal_id, level_num);
+
 	if (!ret) {
+		pr_info("[gpexbe] cal_id %u returned 0 ASV entries\n", cal_id);
 		/* TODO: print error. Also remove this size limit by using dynamic alloc */
 		return ret;
 	}
 
+	if (ret < level_num)
+		pr_info("[gpexbe] cal_id %u only supplied %d entries (requested %d)\n",
+			cal_id, ret, level_num);
+
 	for (i = 0; i < level_num; i++) {
 		fv_array[i].freq = rate_volt[i].rate;
 		fv_array[i].volt = rate_volt[i].volt;
+		pr_info("[gpexbe]   level %02d : %8d kHz @ %d uV\n", i,
+			fv_array[i].freq, fv_array[i].volt);
 	}
 
 	return ret;
@@ -100,11 +115,15 @@ int gpexbe_clock_init(void)
 
 	if (!cal_id) {
 		/* TODO: print error cal id not found */
+		pr_info("[gpexbe] failed to read g3d_cmu_cal_id from DT\n");
 		return -1;
 	}
 
 	pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
 	pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
+
+	pr_info("[gpexbe] init cal_id %u boot %d kHz limit %d kHz\n",
+		cal_id, pm_info.boot_clock, pm_info.max_clock_limit);
 
 	gpex_utils_get_exynos_context()->pm_info = &pm_info;
 

@@ -18,6 +18,8 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+#include <linux/printk.h>
+
 #include <gpex_clock.h>
 #include <gpex_pm.h>
 #include <gpex_dvfs.h>
@@ -167,6 +169,12 @@ GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
+		if (clock > gpex_clock_get_max_clock_limit()) {
+			pr_info("[gpex_clock_sysfs] max lock request %d clamped to %d\n",
+				clock, gpex_clock_get_max_clock_limit());
+			clock = gpex_clock_get_max_clock_limit();
+		}
+
 		if (clock == gpex_clock_get_max_clock())
 			gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
 		else
@@ -261,8 +269,11 @@ GPEX_STATIC ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
-		if (clock > gpex_clock_get_max_clock_limit())
+		if (clock > gpex_clock_get_max_clock_limit()) {
+			pr_info("[gpex_clock_sysfs] min lock request %d clamped to %d\n",
+				clock, gpex_clock_get_max_clock_limit());
 			clock = gpex_clock_get_max_clock_limit();
+		}
 
 		if (clock == gpex_clock_get_min_clock())
 			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
@@ -355,8 +366,11 @@ GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
-		if (clock > gpex_clock_get_max_clock_limit())
+		if (clock > gpex_clock_get_max_clock_limit()) {
+			pr_info("[gpex_clock_sysfs] MM min lock request %d clamped to %d\n",
+				clock, gpex_clock_get_max_clock_limit());
 			clock = gpex_clock_get_max_clock_limit();
+		}
 
 		gpex_clboost_set_state(CLBOOST_DISABLE);
 
