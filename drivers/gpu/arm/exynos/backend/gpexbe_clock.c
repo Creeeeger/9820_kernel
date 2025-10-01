@@ -18,6 +18,9 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+#include <linux/kernel.h>
+#include <linux/minmax.h>
+#include <linux/printk.h>
 #include <soc/samsung/cal-if.h>
 
 #include <gpexbe_devicetree.h>
@@ -36,7 +39,11 @@ static unsigned int cal_id;
 
 int gpexbe_clock_get_level_num(void)
 {
-	return cal_dfs_get_lv_num(cal_id);
+        int levels = cal_dfs_get_lv_num(cal_id);
+
+        pr_info("[G3D][BE] CAL level count=%d (id=0x%x)\n", levels, cal_id);
+
+        return levels;
 }
 
 int gpexbe_clock_get_rate_asv_table(struct freq_volt *fv_array, int level_num)
@@ -45,29 +52,39 @@ int gpexbe_clock_get_rate_asv_table(struct freq_volt *fv_array, int level_num)
 	int ret = 0;
 	struct dvfs_rate_volt rate_volt[48];
 
-	ret = cal_dfs_get_rate_asv_table(cal_id, rate_volt);
+        ret = cal_dfs_get_rate_asv_table(cal_id, rate_volt);
 
-	if (!ret) {
-		/* TODO: print error. Also remove this size limit by using dynamic alloc */
-		return ret;
-	}
+        if (!ret) {
+                /* TODO: print error. Also remove this size limit by using dynamic alloc */
+                pr_info("[G3D][BE] rate/asv table fetch failed (id=0x%x)\n", cal_id);
+                return ret;
+        }
 
-	for (i = 0; i < level_num; i++) {
-		fv_array[i].freq = rate_volt[i].rate;
-		fv_array[i].volt = rate_volt[i].volt;
-	}
+        pr_info("[G3D][BE] populated %d rate/asv entries (request=%d)\n",
+                ret, level_num);
 
-	return ret;
+        for (i = 0; i < min(level_num, ret); i++) {
+                fv_array[i].freq = rate_volt[i].rate;
+                fv_array[i].volt = rate_volt[i].volt;
+                pr_info("[G3D][BE]   level %02d freq=%d volt=%d\n", i,
+                        fv_array[i].freq, fv_array[i].volt);
+        }
+
+        return ret;
 }
 
 int gpexbe_clock_get_boot_freq(void)
 {
-	return pm_info.boot_clock;
+        pr_info("[G3D][BE] boot frequency cached=%d\n", pm_info.boot_clock);
+
+        return pm_info.boot_clock;
 }
 
 int gpexbe_clock_get_max_freq(void)
 {
-	return pm_info.max_clock_limit;
+        pr_info("[G3D][BE] max frequency limit cached=%d\n", pm_info.max_clock_limit);
+
+        return pm_info.max_clock_limit;
 }
 
 int gpexbe_clock_set_rate(int clk)
@@ -96,19 +113,25 @@ int gpexbe_clock_get_rate(void)
 
 int gpexbe_clock_init(void)
 {
-	cal_id = gpexbe_devicetree_get_int(g3d_cmu_cal_id);
+        cal_id = gpexbe_devicetree_get_int(g3d_cmu_cal_id);
 
-	if (!cal_id) {
-		/* TODO: print error cal id not found */
-		return -1;
-	}
+        if (!cal_id) {
+                /* TODO: print error cal id not found */
+                pr_info("[G3D][BE] failed to read g3d_cmu_cal_id from DT\n");
+                return -1;
+        }
 
-	pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
-	pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
+        pr_info("[G3D][BE] initialising CAL id=0x%x\n", cal_id);
 
-	gpex_utils_get_exynos_context()->pm_info = &pm_info;
+        pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
+        pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
 
-	return 0;
+        pr_info("[G3D][BE] boot=%d max_limit=%d\n", pm_info.boot_clock,
+                pm_info.max_clock_limit);
+
+        gpex_utils_get_exynos_context()->pm_info = &pm_info;
+
+        return 0;
 }
 
 void gpexbe_clock_term(void)

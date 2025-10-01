@@ -19,6 +19,8 @@
  */
 
 #include <gpex_dvfs.h>
+#include <linux/printk.h>
+
 #include <gpex_clock.h>
 #include <gpex_pm.h>
 #include <gpex_utils.h>
@@ -116,60 +118,82 @@ void *gpu_dvfs_get_governor_info(void)
 
 static int gpu_dvfs_governor_default(int utilization)
 {
-	if ((dvfs->step > gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
-	    (utilization > dvfs->table[dvfs->step].max_threshold)) {
-		dvfs->step--;
-		if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
-			dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
-		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-	} else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
-		   (utilization < dvfs->table[dvfs->step].min_threshold)) {
-		dvfs->down_requirement--;
-		if (dvfs->down_requirement == 0) {
-			dvfs->step++;
-			dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-		}
-	} else {
-		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-	}
-	DVFS_ASSERT((dvfs->step >= gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
-		    (dvfs->step <= gpex_clock_get_table_idx(gpex_clock_get_min_clock())));
+        if ((dvfs->step > gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
+            (utilization > dvfs->table[dvfs->step].max_threshold)) {
+                int prev_step = dvfs->step;
 
-	return 0;
+                dvfs->step--;
+                if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
+                        dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
+                dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+                pr_info("[G3D][GOV] default util%u clamp above max: step %d->%d freq=%d limit=%d\n",
+                        utilization, prev_step, dvfs->step, dvfs->table[dvfs->step].clock,
+                        gpex_clock_get_max_clock_limit());
+        } else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
+                   (utilization < dvfs->table[dvfs->step].min_threshold)) {
+                dvfs->down_requirement--;
+                if (dvfs->down_requirement == 0) {
+                        int prev_step = dvfs->step;
+
+                        dvfs->step++;
+                        dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+                        pr_info("[G3D][GOV] default util%u clamp below min: step %d->%d freq=%d min=%d\n",
+                                utilization, prev_step, dvfs->step,
+                                dvfs->table[dvfs->step].clock, gpex_clock_get_min_clock());
+                }
+        } else {
+                dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+        }
+        DVFS_ASSERT((dvfs->step >= gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
+                    (dvfs->step <= gpex_clock_get_table_idx(gpex_clock_get_min_clock())));
+
+        return 0;
 }
 
 static int gpu_dvfs_governor_interactive(int utilization)
 {
-	if ((dvfs->step > gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
-	    (utilization > dvfs->table[dvfs->step].max_threshold)) {
-		int highspeed_level = gpex_clock_get_table_idx(dvfs->interactive.highspeed_clock);
-		if ((highspeed_level > 0) && (dvfs->step > highspeed_level) &&
-		    (utilization > dvfs->interactive.highspeed_load)) {
+        if ((dvfs->step > gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
+            (utilization > dvfs->table[dvfs->step].max_threshold)) {
+                int highspeed_level = gpex_clock_get_table_idx(dvfs->interactive.highspeed_clock);
+                if ((highspeed_level > 0) && (dvfs->step > highspeed_level) &&
+                    (utilization > dvfs->interactive.highspeed_load)) {
 			if (dvfs->interactive.delay_count == dvfs->interactive.highspeed_delay) {
 				dvfs->step = highspeed_level;
 				dvfs->interactive.delay_count = 0;
 			} else {
 				dvfs->interactive.delay_count++;
 			}
-		} else {
-			dvfs->step--;
-			dvfs->interactive.delay_count = 0;
-		}
-		if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
-			dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
-		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-	} else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
-		   (utilization < dvfs->table[dvfs->step].min_threshold)) {
-		dvfs->interactive.delay_count = 0;
-		dvfs->down_requirement--;
-		if (dvfs->down_requirement == 0) {
-			dvfs->step++;
-			dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-		}
-	} else {
-		dvfs->interactive.delay_count = 0;
-		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
-	}
+                } else {
+                        int prev_step = dvfs->step;
+
+                        dvfs->step--;
+                        dvfs->interactive.delay_count = 0;
+                        pr_info("[G3D][GOV] interactive util%u step %d->%d (max clamp)\n",
+                                utilization, prev_step, dvfs->step);
+                }
+                if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
+                        dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
+                dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+                pr_info("[G3D][GOV] interactive util%u applying step=%d freq=%d limit=%d\n",
+                        utilization, dvfs->step, dvfs->table[dvfs->step].clock,
+                        gpex_clock_get_max_clock_limit());
+        } else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
+                   (utilization < dvfs->table[dvfs->step].min_threshold)) {
+                dvfs->interactive.delay_count = 0;
+                dvfs->down_requirement--;
+                if (dvfs->down_requirement == 0) {
+                        int prev_step = dvfs->step;
+
+                        dvfs->step++;
+                        dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+                        pr_info("[G3D][GOV] interactive util%u step %d->%d (min clamp) freq=%d\n",
+                                utilization, prev_step, dvfs->step,
+                                dvfs->table[dvfs->step].clock);
+                }
+        } else {
+                dvfs->interactive.delay_count = 0;
+                dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+        }
 
 	DVFS_ASSERT(dvfs->step <= gpex_clock_get_table_idx(gpex_clock_get_min_clock()));
 
@@ -194,16 +218,22 @@ static int gpu_dvfs_governor_joint(int utilization)
 	weight_fmargin_clock =
 		utilT + ((gpex_clock_get_max_clock() - utilT) / 1000) * gpex_tsg_get_freq_margin();
 
-	if (weight_fmargin_clock > gpex_clock_get_max_clock()) {
-		dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
-	} else if (weight_fmargin_clock < gpex_clock_get_min_clock()) {
-		dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
-	} else {
-		for (i = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
-		     i <= gpex_clock_get_table_idx(gpex_clock_get_min_clock()); i++) {
-			diff_clock = (dvfs->table[i].clock - weight_fmargin_clock);
-			if (diff_clock < min_value) {
-				if (diff_clock >= 0) {
+        if (weight_fmargin_clock > gpex_clock_get_max_clock()) {
+                dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
+                pr_info("[G3D][GOV] joint weight %d above max -> step=%d freq=%d\n",
+                        weight_fmargin_clock, dvfs->step,
+                        dvfs->table[dvfs->step].clock);
+        } else if (weight_fmargin_clock < gpex_clock_get_min_clock()) {
+                dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
+                pr_info("[G3D][GOV] joint weight %d below min -> step=%d freq=%d\n",
+                        weight_fmargin_clock, dvfs->step,
+                        dvfs->table[dvfs->step].clock);
+        } else {
+                for (i = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
+                     i <= gpex_clock_get_table_idx(gpex_clock_get_min_clock()); i++) {
+                        diff_clock = (dvfs->table[i].clock - weight_fmargin_clock);
+                        if (diff_clock < min_value) {
+                                if (diff_clock >= 0) {
 					min_value = diff_clock;
 					next_clock = dvfs->table[i].clock;
 				} else {
