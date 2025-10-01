@@ -513,13 +513,26 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
-                        pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
-                                new->table[j].rate, new->table[j].volt,
-                                volt_offset_percent);
-                        if (!strcmp(vclk->name, "dvfs_g3d"))
-                                pr_info("    -> G3D level %d rate %d uV %d\n", j,
-                                        new->table[j].rate,
-                                        new->table[j].volt);
+       	if (!strcmp(vclk->name, "dvfs_g3d") &&
+			    new->table[j].rate == 754000 &&
+			    new->table[j].volt != 725000) {
+				if (new->table[j].volt)
+					pr_info("  Overriding G3D rate %d uV from %d to %d\n",
+						new->table[j].rate,
+						new->table[j].volt, 725000);
+				else
+					pr_info("  Applying G3D voltage %d uV for rate %d\n",
+						725000, new->table[j].rate);
+
+				new->table[j].volt = 725000;
+			}
+			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
+				new->table[j].rate, new->table[j].volt,
+				volt_offset_percent);
+			if (!strcmp(vclk->name, "dvfs_g3d"))
+				pr_info("    -> G3D level %d rate %d uV %d\n", j,
+					new->table[j].rate,
+					new->table[j].volt);
 		}
 
 		old_param = sram_base + fvmap_header[i].o_tables;
