@@ -120,7 +120,7 @@ int gpexbe_clock_init(void)
 	}
 
 	pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
-	pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
+	pm_info.max_clock_limit = 754000;
 
 	pr_info("[gpexbe] init cal_id %u boot %d kHz limit %d kHz\n",
 		cal_id, pm_info.boot_clock, pm_info.max_clock_limit);
