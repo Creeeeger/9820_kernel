@@ -1,10 +1,16 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/io.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/kobject.h>
+#include <linux/fs.h>
+#include <linux/file.h>
+#include <linux/fcntl.h>
+#include <linux/init.h>
+#include <linux/hex_dump.h>
 #include <soc/samsung/cal-if.h>
 
 #include "fvmap.h"
@@ -14,6 +20,7 @@
 
 #define FVMAP_SIZE		(SZ_8K)
 #define STEP_UV			(6250)
+#define FVMAP_DUMP_PATH			"/data/media/0/fvmap_dump.bin"
 
 void __iomem *fvmap_base;
 void __iomem *sram_fvmap_base;
@@ -21,6 +28,80 @@ void __iomem *sram_fvmap_base;
 static int init_margin_table[MAX_MARGIN_ID];
 static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
+static bool fvmap_dump_retry;
+
+static void fvmap_log_sram_image(void)
+{
+	void *buf;
+
+	if (!sram_fvmap_base) {
+		pr_err("%s: SRAM base is NULL, skipping log dump\n", __func__);
+		return;
+	}
+
+	buf = kmalloc(FVMAP_SIZE, GFP_KERNEL);
+	if (!buf) {
+		pr_err("%s: failed to allocate %zu bytes for log dump\n", __func__,
+			FVMAP_SIZE);
+		return;
+	}
+
+	memcpy_fromio(buf, sram_fvmap_base, FVMAP_SIZE);
+	pr_info("%s: dumping %zu-byte SRAM FVMAP snapshot to log\n", __func__,
+		FVMAP_SIZE);
+	print_hex_dump(KERN_INFO, "[fvmap] ", DUMP_PREFIX_OFFSET, 16, 1, buf,
+		       FVMAP_SIZE, false);
+
+	kfree(buf);
+}
+
+static int fvmap_dump_sram_image(void)
+{
+        struct file *filp;
+        void *buf;
+        loff_t pos = 0;
+        ssize_t written;
+        int ret = 0;
+
+        if (!sram_fvmap_base) {
+                pr_err("%s: SRAM base is NULL, skipping dump\n", __func__);
+                return -ENODEV;
+        }
+
+        buf = kmalloc(FVMAP_SIZE, GFP_KERNEL);
+        if (!buf) {
+                pr_err("%s: failed to allocate %zu bytes for dump buffer\n",
+                        __func__, FVMAP_SIZE);
+                return -ENOMEM;
+        }
+
+        memcpy_fromio(buf, sram_fvmap_base, FVMAP_SIZE);
+
+        filp = filp_open(FVMAP_DUMP_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (IS_ERR(filp)) {
+                ret = PTR_ERR(filp);
+                pr_err("%s: failed to open %s (%d)\n", __func__,
+                        FVMAP_DUMP_PATH, ret);
+                goto out_free;
+        }
+
+        written = kernel_write(filp, buf, FVMAP_SIZE, &pos);
+        if (written != FVMAP_SIZE) {
+                ret = (written < 0) ? (int)written : -EIO;
+                pr_err("%s: wrote %zd/%zu bytes to %s\n", __func__, written,
+                        FVMAP_SIZE, FVMAP_DUMP_PATH);
+        } else {
+                pr_info("%s: dumped %zu bytes of SRAM FVMAP to %s\n", __func__,
+                        FVMAP_SIZE, FVMAP_DUMP_PATH);
+        }
+
+        filp_close(filp, NULL);
+
+out_free:
+        kfree(buf);
+
+        return ret;
+}
 
 static int __init get_mif_volt(char *str)
 {
@@ -405,6 +486,8 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 	fvmap_header = map_base;
 	header = sram_base;
 
+	fvmap_log_sram_image();
+
 	size = cmucal_get_list_size(ACPM_VCLK_TYPE);
 
 	for (i = 0; i < size; i++) {
@@ -430,19 +513,31 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
 			continue;
-		pr_info("dvfs_type : %s - id : %x\n",
-			vclk->name, fvmap_header[i].dvfs_type);
-		pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
-		pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+                pr_info("dvfs_type : %s - id : %x\n",
+                        vclk->name, fvmap_header[i].dvfs_type);
+                pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
+                pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+                if (!strcmp(vclk->name, "dvfs_g3d")) {
+                        pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
+                        pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
+                        pr_info("  G3D ratevolt offset=0x%x tables offset=0x%x\n",
+                                fvmap_header[i].o_ratevolt,
+                                fvmap_header[i].o_tables);
+                }
 
 		old = sram_base + fvmap_header[i].o_ratevolt;
 		new = map_base + fvmap_header[i].o_ratevolt;
 
 		check_percent_margin(old, fvmap_header[i].num_of_lv);
 
-		margin = init_margin_table[vclk->margin_id];
-		if (margin)
-			cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
+                margin = init_margin_table[vclk->margin_id];
+                if (margin) {
+                        pr_info("  Applying init margin %d uV for %s\n",
+                                margin, vclk->name);
+                        cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
+                } else if (!strcmp(vclk->name, "dvfs_g3d")) {
+                        pr_info("  No init margin configured for %s\n", vclk->name);
+                }
 
 		for (j = 0; j < fvmap_header[i].num_of_members; j++) {
 			clks = sram_base + fvmap_header[i].o_members;
@@ -470,13 +565,17 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				pr_info("  DVFS CMU addr:0x%x\n", member_addr);
 		}
 
-		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
-			new->table[j].rate = old->table[j].rate;
-			new->table[j].volt = old->table[j].volt;
-			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
-				new->table[j].rate, new->table[j].volt,
-				volt_offset_percent);
-		}
+                for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
+                        new->table[j].rate = old->table[j].rate;
+                        new->table[j].volt = old->table[j].volt;
+                        pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
+                                new->table[j].rate, new->table[j].volt,
+                                volt_offset_percent);
+                        if (!strcmp(vclk->name, "dvfs_g3d"))
+                                pr_info("    -> G3D level %d rate %d uV %d\n", j,
+                                        new->table[j].rate,
+                                        new->table[j].volt);
+                }
 
 		old_param = sram_base + fvmap_header[i].o_tables;
 		new_param = map_base + fvmap_header[i].o_tables;
@@ -500,13 +599,20 @@ int fvmap_init(void __iomem *sram_base)
 {
 	void __iomem *map_base;
 	struct kobject *kobj;
+	int ret;
 
 	map_base = kzalloc(FVMAP_SIZE, GFP_KERNEL);
 
 	fvmap_base = map_base;
 	sram_fvmap_base = sram_base;
-	pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
+	pr_info("%s:fvmap initialize %pK\n", __func__, sram_base);
 	fvmap_copy_from_sram(map_base, sram_base);
+	ret = fvmap_dump_sram_image();
+	if (ret == -ENOENT) {
+		fvmap_dump_retry = true;
+		pr_info("%s: deferring SRAM dump until %s becomes available\n",
+			__func__, FVMAP_DUMP_PATH);
+	}
 
 	/* percent margin for each doamin at runtime */
 	kobj = kobject_create_and_add("percent_margin", power_kobj);
@@ -518,3 +624,24 @@ int fvmap_init(void __iomem *sram_base)
 
 	return 0;
 }
+
+static int __init fvmap_dump_late_init(void)
+{
+	int ret;
+
+	if (!fvmap_dump_retry)
+		return 0;
+
+	pr_info("%s: retrying SRAM dump to %s\n", __func__, FVMAP_DUMP_PATH);
+	ret = fvmap_dump_sram_image();
+	if (ret)
+		pr_err("%s: late dump failed (%d)\n", __func__, ret);
+	else
+		pr_info("%s: late dump succeeded\n", __func__);
+
+	fvmap_dump_retry = false;
+
+	return 0;
+}
+late_initcall(fvmap_dump_late_init);
+

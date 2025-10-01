@@ -1,5 +1,6 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <linux/string.h>
 #include <linux/io.h>
 #include <soc/samsung/ect_parser.h>
 
@@ -509,6 +510,19 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 		if (dvfs_domain->resume_level_idx != -1)
 			vclk->resume_freq = vclk->lut[dvfs_domain->resume_level_idx].rate;
 	}
+
+        pr_info("[G3D][VCLK] %s domain: levels=%d clocks=%d min=%u max=%u boot=%u resume=%u (minmax=%s)\n",
+                vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq,
+                vclk->max_freq, vclk->boot_freq, vclk->resume_freq,
+                minmax_table ? "override" : "absent");
+
+        if (!strcmp(vclk->name, "dvfs_g3d")) {
+                pr_info("[G3D][VCLK] boot_idx=%d resume_idx=%d table_ver=%u\n",
+                        dvfs_domain->boot_level_idx, dvfs_domain->resume_level_idx,
+                        asv_table_ver);
+                for (i = 0; i < vclk->num_rates; i++)
+                        pr_info("[G3D][VCLK]   lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
+        }
 
 	return ret;
 err_nomem2:

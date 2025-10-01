@@ -18,6 +18,8 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+#include <linux/printk.h>
+
 #include <gpex_clock.h>
 #include <gpex_pm.h>
 #include <gpex_dvfs.h>
@@ -143,37 +145,53 @@ CREATE_SYSFS_DEVICE_WRITE_FUNCTION(reset_time_in_state)
 
 GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 {
-	int ret, clock = 0;
+        int ret, clock = 0;
+        int requested_clock = 0;
+        int rounded_clock = 0;
 
-	if (sysfs_streq("0", buf)) {
-		clk_info->user_max_lock_input = 0;
-		gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
-	} else {
+        if (sysfs_streq("0", buf)) {
+                clk_info->user_max_lock_input = 0;
+                gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
+        } else {
 		ret = kstrtoint(buf, 0, &clock);
 		if (ret) {
 			GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid value\n", __func__);
 			return -ENOENT;
 		}
 
-		clk_info->user_max_lock_input = clock;
+                clk_info->user_max_lock_input = clock;
+                requested_clock = clock;
 
-		clock = gpex_get_valid_gpu_clock(clock, false);
+                clock = gpex_get_valid_gpu_clock(clock, false);
+                rounded_clock = clock;
 
-		ret = gpex_clock_get_table_idx(clock);
-		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
-		    (ret > gpex_clock_get_table_idx(gpex_clock_get_min_clock()))) {
-			GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid clock value (%d)\n", __func__,
+                ret = gpex_clock_get_table_idx(clock);
+                if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
+                    (ret > gpex_clock_get_table_idx(gpex_clock_get_min_clock()))) {
+                        GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid clock value (%d)\n", __func__,
 				clock);
 			return -ENOENT;
 		}
 
-		if (clock == gpex_clock_get_max_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
-		else
-			gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, SYSFS_LOCK, clock);
-	}
+                if (clock > gpex_clock_get_max_clock_limit()) {
+                        pr_info("[G3D][SYSFS] max lock req=%d rounded=%d clamp limit=%d\n",
+                                requested_clock, rounded_clock,
+                                gpex_clock_get_max_clock_limit());
+                        clock = gpex_clock_get_max_clock_limit();
+                }
 
-	return count;
+                if (clock == gpex_clock_get_max_clock()) {
+                        pr_info("[G3D][SYSFS] max lock req=%d rounded=%d -> unlock\n",
+                                requested_clock, rounded_clock);
+                        gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
+                } else {
+                        pr_info("[G3D][SYSFS] max lock req=%d rounded=%d apply=%d\n",
+                                requested_clock, rounded_clock, clock);
+                        gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, SYSFS_LOCK, clock);
+                }
+        }
+
+        return count;
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_max_lock_dvfs)
 CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_max_lock_dvfs)
@@ -237,40 +255,48 @@ CREATE_SYSFS_KOBJECT_READ_FUNCTION(show_max_lock_dvfs_kobj)
 
 GPEX_STATIC ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 {
-	int ret, clock = 0;
+        int ret, clock = 0;
+        int requested_clock = 0;
+        int rounded_clock = 0;
 
-	if (sysfs_streq("0", buf)) {
-		clk_info->user_min_lock_input = 0;
-		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
-	} else {
+        if (sysfs_streq("0", buf)) {
+                clk_info->user_min_lock_input = 0;
+                gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+        } else {
 		ret = kstrtoint(buf, 0, &clock);
 		if (ret) {
 			GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid value\n", __func__);
 			return -ENOENT;
 		}
 
-		clk_info->user_min_lock_input = clock;
+                clk_info->user_min_lock_input = clock;
+                requested_clock = clock;
 
-		clock = gpex_get_valid_gpu_clock(clock, true);
+                clock = gpex_get_valid_gpu_clock(clock, true);
+                rounded_clock = clock;
 
-		ret = gpex_clock_get_table_idx(clock);
-		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
-		    (ret > gpex_clock_get_table_idx(gpex_clock_get_min_clock()))) {
-			GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid clock value (%d)\n", __func__,
+                ret = gpex_clock_get_table_idx(clock);
+                if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
+                    (ret > gpex_clock_get_table_idx(gpex_clock_get_min_clock()))) {
+                        GPU_LOG(MALI_EXYNOS_WARNING, "%s: invalid clock value (%d)\n", __func__,
 				clock);
 			return -ENOENT;
 		}
 
-		if (clock > gpex_clock_get_max_clock_limit())
-			clock = gpex_clock_get_max_clock_limit();
+                if (clock > gpex_clock_get_max_clock_limit()) {
+                        pr_info("[G3D][SYSFS] min lock clamp req=%d rounded=%d limit=%d\n",
+                                requested_clock, rounded_clock,
+                                gpex_clock_get_max_clock_limit());
+                        clock = gpex_clock_get_max_clock_limit();
+                }
 
-		if (clock == gpex_clock_get_min_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+                if (clock == gpex_clock_get_min_clock())
+                        gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
 		else
 			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, SYSFS_LOCK, clock);
 	}
 
-	return count;
+        return count;
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_min_lock_dvfs)
 CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_min_lock_dvfs)
@@ -355,8 +381,11 @@ GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
-		if (clock > gpex_clock_get_max_clock_limit())
+		if (clock > gpex_clock_get_max_clock_limit()) {
+			pr_info("[G3D][SYSFS] MM min lock request %d clamped to %d\n",
+				clock, gpex_clock_get_max_clock_limit());
 			clock = gpex_clock_get_max_clock_limit();
+		}
 
 		gpex_clboost_set_state(CLBOOST_DISABLE);
 
