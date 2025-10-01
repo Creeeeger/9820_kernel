@@ -59,6 +59,11 @@ typedef struct _dt_clqos_item {
 	int big_max;
 } dt_clqos_item;
 
+struct gpu_manual_volt_entry {
+	u32 clock;
+	u32 voltage;
+};
+
 typedef struct _dt_info {
 	struct device *dev;
 	int initialized;
@@ -81,6 +86,11 @@ typedef struct _dt_info {
 	} gpu_cl_pmqos_table_size;
 
 	dt_clqos_item *gpu_cl_pmqos_table;
+
+	struct {
+                struct gpu_manual_volt_entry *entries;
+                u32 count;
+	} gpu_manual_volt_table;
 
 	/* values from interactive_info field */
 	struct interactive_info {
@@ -165,6 +175,13 @@ dt_clqos_item *gpexbe_devicetree_get_clqos_table(void);
  * Return: pointer to gpu_dt struct
  */
 gpu_dt *gpexbe_devicetree_get_gpu_dt(void);
+
+/**
+ * gpexbe_devicetree_get_manual_volt_table() - get gpu manual voltage table entries
+ * @count: optional pointer that will store number of entries in the table
+ * Return: pointer to manual voltage table entries, or NULL if not provided
+ */
+const struct gpu_manual_volt_entry *gpexbe_devicetree_get_manual_volt_table(u32 *count);
 
 /**
  * gpexbe_devicetree_init() - initializes gpexbe_devicetree module
