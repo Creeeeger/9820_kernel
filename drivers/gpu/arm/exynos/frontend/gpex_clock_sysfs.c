@@ -172,7 +172,6 @@ GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 		if (clock > gpex_clock_get_max_clock_limit()) {
 			pr_info("[gpex_clock_sysfs] max lock request %d clamped to %d\n",
 				clock, gpex_clock_get_max_clock_limit());
-			clock = gpex_clock_get_max_clock_limit();
 		}
 
 		if (clock == gpex_clock_get_max_clock())
