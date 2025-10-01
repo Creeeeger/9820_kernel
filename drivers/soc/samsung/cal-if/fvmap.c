@@ -27,46 +27,30 @@ static int init_margin_table[MAX_MARGIN_ID];
 static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
 
-static void fvmap_dump_sram_image(void)
+static void fvmap_log_sram_image(void __iomem *sram_base)
 {
-	struct file *filp;
-	void *buf;
-	loff_t pos = 0;
-	ssize_t written;
+        u8 *buf;
 
-	if (!sram_fvmap_base) {
-		pr_err("%s: SRAM base is NULL, skipping dump\n", __func__);
-		return;
-	}
+        if (!sram_base) {
+                pr_err("%s: SRAM base is NULL, skipping in-kernel dump\n",
+                       __func__);
+                return;
+        }
 
-	buf = kmalloc(FVMAP_SIZE, GFP_KERNEL);
-	if (!buf) {
-		pr_err("%s: failed to allocate %zu bytes for dump buffer\n",
-			__func__, FVMAP_SIZE);
-		return;
-	}
+        buf = kmalloc(FVMAP_SIZE, GFP_KERNEL);
+        if (!buf) {
+                pr_err("%s: failed to allocate %zu bytes for SRAM log buffer\n",
+                       __func__, FVMAP_SIZE);
+                return;
+        }
 
-	memcpy_fromio(buf, sram_fvmap_base, FVMAP_SIZE);
+        memcpy_fromio(buf, sram_base, FVMAP_SIZE);
+        pr_info("%s: dumping %zu bytes of SRAM FVMAP into the kernel log\n",
+                __func__, FVMAP_SIZE);
+        print_hex_dump(KERN_INFO, "[fvmap] ", DUMP_PREFIX_OFFSET, 32, 1,
+                       buf, FVMAP_SIZE, false);
 
-	filp = filp_open(FVMAP_DUMP_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (IS_ERR(filp)) {
-		pr_err("%s: failed to open %s (%ld)\n", __func__,
-			FVMAP_DUMP_PATH, PTR_ERR(filp));
-		goto out_free;
-	}
-
-	written = kernel_write(filp, buf, FVMAP_SIZE, &pos);
-	if (written != FVMAP_SIZE)
-		pr_err("%s: wrote %zd/%zu bytes to %s\n", __func__, written,
-			FVMAP_SIZE, FVMAP_DUMP_PATH);
-	else
-		pr_info("%s: dumped %zu bytes of SRAM FVMAP to %s\n", __func__,
-			FVMAP_SIZE, FVMAP_DUMP_PATH);
-
-	filp_close(filp, NULL);
-
-out_free:
-	kfree(buf);
+        kfree(buf);
 }
 
 static int __init get_mif_volt(char *str)
@@ -567,7 +551,7 @@ int fvmap_init(void __iomem *sram_base)
 	sram_fvmap_base = sram_base;
 	pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
 	fvmap_copy_from_sram(map_base, sram_base);
-	fvmap_dump_sram_image();
+	fvmap_log_sram_image(sram_base);
 
 	/* percent margin for each doamin at runtime */
 	kobj = kobject_create_and_add("percent_margin", power_kobj);
