@@ -450,10 +450,10 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 		}
 	}
 
-	vclk->num_rates = dvfs_domain->num_of_level;
-	vclk->num_list = dvfs_domain->num_of_clock;
-	vclk->max_freq = dvfs_domain->max_frequency;
-	vclk->min_freq = dvfs_domain->min_frequency;
+        vclk->num_rates = dvfs_domain->num_of_level;
+        vclk->num_list = dvfs_domain->num_of_clock;
+        vclk->max_freq = dvfs_domain->max_frequency;
+        vclk->min_freq = dvfs_domain->min_frequency;
 
 	if (minmax_table != NULL) {
 		vclk->min_freq = minmax_table[MINMAX_MIN_FREQ] * 1000;
@@ -511,9 +511,41 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 			vclk->resume_freq = vclk->lut[dvfs_domain->resume_level_idx].rate;
 	}
 
-	pr_info("[vclk] %s domain: levels=%d clocks=%d min=%u max=%u boot=%u resume=%u (minmax=%s)\n",
-			vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq, vclk->max_freq,
-			vclk->boot_freq, vclk->resume_freq, minmax_table ? "override" : "absent");
+        if (!strcmp(vclk->name, "dvfs_g3d")) {
+                unsigned int override_rate = 754000;
+                unsigned int original_max = 0;
+                int max_idx = -1;
+                int k;
+
+                for (k = 0; k < vclk->num_rates; k++) {
+                        if (vclk->lut[k].rate >= original_max) {
+                                original_max = vclk->lut[k].rate;
+                                max_idx = k;
+                        }
+                }
+
+                if (max_idx >= 0) {
+                        vclk->lut[max_idx].rate = override_rate;
+
+                        if (vclk->boot_freq == original_max)
+                                vclk->boot_freq = override_rate;
+
+                        if (vclk->resume_freq == original_max)
+                                vclk->resume_freq = override_rate;
+                }
+
+                vclk->max_freq = override_rate;
+
+                if (vclk->min_freq > override_rate)
+                        vclk->min_freq = override_rate;
+
+                pr_info("[vclk] dvfs_g3d max frequency overridden to %u KHz (was %u)\n",
+                                override_rate, original_max);
+        }
+
+        pr_info("[vclk] %s domain: levels=%d clocks=%d min=%u max=%u boot=%u resume=%u (minmax=%s)\n",
+                        vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq, vclk->max_freq,
+                        vclk->boot_freq, vclk->resume_freq, minmax_table ? "override" : "absent");
 
 	if (!strcmp(vclk->name, "dvfs_g3d")) {
 		pr_info("[vclk] dvfs_g3d boot_idx=%d resume_idx=%d table_ver=%u\n",
