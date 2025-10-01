@@ -19,6 +19,8 @@
  */
 
 #include <gpex_dvfs.h>
+#include <linux/printk.h>
+
 #include <gpex_clock.h>
 #include <gpex_pm.h>
 #include <gpex_utils.h>
@@ -118,10 +120,17 @@ static int gpu_dvfs_governor_default(int utilization)
 {
 	if ((dvfs->step > gpex_clock_get_table_idx(gpex_clock_get_max_clock())) &&
 	    (utilization > dvfs->table[dvfs->step].max_threshold)) {
-		dvfs->step--;
-		if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
-			dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
-		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
+                dvfs->step--;
+                if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit()) {
+                        int prev_step = dvfs->step;
+                        int prev_clock = dvfs->table[prev_step].clock;
+
+                        dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
+                        pr_info("[gpu_dvfs] default clamp step %d->%d (%d kHz -> limit %d)\n",
+                                prev_step, dvfs->step, prev_clock,
+                                gpex_clock_get_max_clock_limit());
+                }
+                dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
 	} else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
 		   (utilization < dvfs->table[dvfs->step].min_threshold)) {
 		dvfs->down_requirement--;
@@ -152,11 +161,18 @@ static int gpu_dvfs_governor_interactive(int utilization)
 				dvfs->interactive.delay_count++;
 			}
 		} else {
-			dvfs->step--;
-			dvfs->interactive.delay_count = 0;
-		}
-		if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit())
-			dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
+                        dvfs->step--;
+                        dvfs->interactive.delay_count = 0;
+                }
+                if (dvfs->table[dvfs->step].clock > gpex_clock_get_max_clock_limit()) {
+                        int prev_step = dvfs->step;
+                        int prev_clock = dvfs->table[prev_step].clock;
+
+                        dvfs->step = gpex_clock_get_table_idx(gpex_clock_get_max_clock_limit());
+                        pr_info("[gpu_dvfs] interactive clamp step %d->%d (%d kHz -> limit %d)\n",
+                                prev_step, dvfs->step, prev_clock,
+                                gpex_clock_get_max_clock_limit());
+                }
 		dvfs->down_requirement = dvfs->table[dvfs->step].down_staycount;
 	} else if ((dvfs->step < gpex_clock_get_table_idx(gpex_clock_get_min_clock())) &&
 		   (utilization < dvfs->table[dvfs->step].min_threshold)) {

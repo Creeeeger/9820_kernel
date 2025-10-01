@@ -1,5 +1,6 @@
 #include <linux/module.h>
 #include <linux/debug-snapshot.h>
+#include <linux/printk.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/cal-if.h>
 #ifdef CONFIG_EXYNOS9820_BTS
@@ -349,7 +350,7 @@ void cal_dfs_set_volt_margin(unsigned int id, int volt)
 }
 
 int cal_dfs_get_rate_asv_table(unsigned int id,
-					struct dvfs_rate_volt *table)
+				       struct dvfs_rate_volt *table)
 {
 	unsigned long rate[48];
 	unsigned int volt[48];
@@ -357,11 +358,19 @@ int cal_dfs_get_rate_asv_table(unsigned int id,
 	int idx;
 
 	num_of_entry = cal_dfs_get_rate_table(id, rate);
-	if (num_of_entry == 0)
+	if (num_of_entry == 0) {
+		pr_info("[cal-if] id %x reported 0 rate entries\n", id);
 		return 0;
+	}
 
-	if (num_of_entry != cal_dfs_get_asv_table(id, volt))
+	if (num_of_entry != cal_dfs_get_asv_table(id, volt)) {
+		pr_info("[cal-if] id %x rate/asv count mismatch (%d)\n",
+			id, num_of_entry);
 		return 0;
+	}
+
+	pr_info("[cal-if] id %x exporting %d rate/asv entries\n",
+		id, num_of_entry);
 
 	for (idx = 0; idx < num_of_entry; idx++) {
 		table[idx].rate = rate[idx];
