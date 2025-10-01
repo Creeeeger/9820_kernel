@@ -170,14 +170,11 @@ GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 		}
 
 		if (clock > gpex_clock_get_max_clock_limit()) {
-			pr_info("[gpex_clock_sysfs] max lock request %d clamped to %d\n",
-				clock, gpex_clock_get_max_clock_limit());
+			pr_info("[gpex_clock_sysfs] max lock request %d clamped to %d with max %d\n",
+				clock, gpex_clock_get_max_clock_limit(), gpex_clock_get_max_clock());
 		}
 
-		if (clock == gpex_clock_get_max_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, SYSFS_LOCK, 0);
-		else
-			gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, SYSFS_LOCK, clock);
+		gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, SYSFS_LOCK, clock);
 	}
 
 	return count;
