@@ -90,16 +90,6 @@ static int gpex_clock_update_config_data_from_dt(void)
 	clk_info.boot_clock = gpexbe_clock_get_boot_freq();
 	clk_info.gpu_max_clock_limit = gpexbe_clock_get_max_freq();
 
-	{
-		int dt_limit = gpexbe_devicetree_get_int(gpu_max_clock_limit);
-
-		if (dt_limit > clk_info.gpu_max_clock_limit) {
-			pr_info("[gpex_clock] overriding CAL max limit %d -> %d kHz\n",
-				clk_info.gpu_max_clock_limit, dt_limit);
-			clk_info.gpu_max_clock_limit = dt_limit;
-		}
-	}
-
 	pr_info("[gpex_clock] DT min=%d max=%d boot=%d limit=%d\n",
 		clk_info.gpu_min_clock, clk_info.gpu_max_clock,
 		clk_info.boot_clock, clk_info.gpu_max_clock_limit);
