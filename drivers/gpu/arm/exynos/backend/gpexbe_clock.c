@@ -122,22 +122,6 @@ int gpexbe_clock_init(void)
 	pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
 	pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
 
-	/*
-	 * Some device trees expose a higher GPU frequency ceiling than what the
-	 * CAL interface reports (for example on overclockable boards).
-	 * Honour the DT-provided limit whenever it is higher so that sysfs
-	 * requests are not needlessly clamped to the lower CAL value.
-	 */
-	{
-		int dt_limit = gpexbe_devicetree_get_int(gpu_max_clock_limit);
-
-		if (dt_limit > pm_info.max_clock_limit) {
-			pr_info("[gpexbe] overriding CAL max limit %d -> %d kHz\n",
-				pm_info.max_clock_limit, dt_limit);
-			pm_info.max_clock_limit = dt_limit;
-		}
-	}
-
 	pr_info("[gpexbe] init cal_id %u boot %d kHz limit %d kHz\n",
 		cal_id, pm_info.boot_clock, pm_info.max_clock_limit);
 
