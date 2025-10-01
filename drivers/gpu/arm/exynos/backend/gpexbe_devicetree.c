@@ -30,6 +30,8 @@
 static gpu_dt dt_info;
 static struct _dt_clock_item *clock_table;
 static struct _dt_clqos_item *clqos_table;
+static struct gpu_manual_volt_entry *manual_volt_table;
+static u32 manual_volt_table_cnt;
 
 static int gpexbe_devicetree_read_u32(const char *of_string, u32 *of_data)
 {
@@ -218,6 +220,52 @@ static int build_cl_pmqos_table(void)
 	return 0;
 }
 
+static int build_manual_volt_table(void)
+{
+	int elem_cnt;
+	u32 *raw_table;
+	int i;
+
+	elem_cnt = of_property_count_u32_elems(dt_info.dev->of_node, "gpu_manual_volt_table");
+	if (elem_cnt <= 0) {
+	        manual_volt_table_cnt = 0;
+	        manual_volt_table = NULL;
+	        return 0;
+	}
+
+	if (elem_cnt % 2) {
+	        GPU_LOG(MALI_EXYNOS_ERROR,
+	                "gpu_manual_volt_table must contain pairs of <freq volt> entries\n");
+	        return -EINVAL;
+	}
+
+	raw_table = kcalloc(elem_cnt, sizeof(*raw_table), GFP_KERNEL);
+	if (!raw_table)
+	        return -ENOMEM;
+
+	if (gpexbe_devicetree_read_u32_array("gpu_manual_volt_table", raw_table, elem_cnt)) {
+	        kfree(raw_table);
+	        return -EINVAL;
+	}
+
+	manual_volt_table_cnt = elem_cnt / 2;
+	manual_volt_table = kcalloc(manual_volt_table_cnt, sizeof(*manual_volt_table), GFP_KERNEL);
+	if (!manual_volt_table) {
+	        manual_volt_table_cnt = 0;
+	        kfree(raw_table);
+	        return -ENOMEM;
+	}
+
+	for (i = 0; i < manual_volt_table_cnt; i++) {
+	        manual_volt_table[i].clock = raw_table[2 * i];
+	        manual_volt_table[i].voltage = raw_table[2 * i + 1];
+	}
+
+	kfree(raw_table);
+
+	return 0;
+}
+
 static void read_from_dt(void)
 {
 	/* clock backend */
@@ -313,10 +361,13 @@ int gpexbe_devicetree_init(struct device *dev)
 	read_from_dt();
 	build_clk_table();
 	build_cl_pmqos_table();
+	build_manual_volt_table();
 	read_interactive_info_array();
 
 	dt_info.gpu_dvfs_table = clock_table;
 	dt_info.gpu_cl_pmqos_table = clqos_table;
+	dt_info.gpu_manual_volt_table.entries = manual_volt_table;
+	dt_info.gpu_manual_volt_table.count = manual_volt_table_cnt;
 
 	dt_info.initialized = 1;
 
@@ -327,11 +378,22 @@ void gpexbe_devicetree_term(void)
 {
 	kfree(clock_table);
 	kfree(clqos_table);
+	kfree(manual_volt_table);
 
 	clock_table = NULL;
 	clqos_table = NULL;
+	manual_volt_table = NULL;
+	manual_volt_table_cnt = 0;
 
 	memset(&dt_info, 0, sizeof(gpu_dt));
 
 	return;
+}
+
+const struct gpu_manual_volt_entry *gpexbe_devicetree_get_manual_volt_table(u32 *count)
+{
+	if (count)
+	        *count = dt_info.gpu_manual_volt_table.count;
+
+	return dt_info.gpu_manual_volt_table.entries;
 }
