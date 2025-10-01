@@ -19,7 +19,9 @@
  */
 
 #include <linux/notifier.h>
+#include <linux/types.h>
 #include <linux/ktime.h>
+#include <linux/printk.h>
 
 #include <gpex_tsg.h>
 #include <gpex_dvfs.h>
@@ -106,6 +108,8 @@ uint32_t exynos_stats_get_gpu_table_size(void)
 }
 EXPORT_SYMBOL(exynos_stats_get_gpu_table_size);
 
+static bool freq_table_dumped;
+static bool volt_table_dumped;
 static uint32_t freqs[DVFS_TABLE_ROW_MAX];
 uint32_t *exynos_stats_get_gpu_freq_table(void)
 {
@@ -124,6 +128,16 @@ uint32_t *exynos_stats_get_gpu_freq_table(void)
 
 	for (i = idx_max_clk; i <= idx_min_clk; i++)
 		freqs[i - idx_max_clk] = (uint32_t)gpex_clock_get_clock(i);
+
+	if (!freq_table_dumped) {
+		int count = idx_min_clk - idx_max_clk + 1;
+		pr_info("[gpex_tsg] freq table idx_max=%d idx_min=%d entries=%d\n",
+			idx_max_clk, idx_min_clk, count);
+		for (i = 0; i < count; i++)
+			pr_info("[gpex_tsg]   freq[%02d] = %u kHz\n",
+				idx_max_clk + i, freqs[i]);
+		freq_table_dumped = true;
+	}
 
 	return freqs;
 }
@@ -147,6 +161,16 @@ uint32_t *exynos_stats_get_gpu_volt_table(void)
 
 	for (i = idx_max_clk; i <= idx_min_clk; i++)
 		volts[i - idx_max_clk] = (uint32_t)gpex_clock_get_voltage(gpex_clock_get_clock(i));
+
+	if (!volt_table_dumped) {
+		int count = idx_min_clk - idx_max_clk + 1;
+		pr_info("[gpex_tsg] volt table idx_max=%d idx_min=%d entries=%d\n",
+			idx_max_clk, idx_min_clk, count);
+		for (i = 0; i < count; i++)
+			pr_info("[gpex_tsg]   volt[%02d] = %u uV\n",
+				idx_max_clk + i, volts[i]);
+		volt_table_dumped = true;
+	}
 
 	return volts;
 }

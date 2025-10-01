@@ -672,10 +672,14 @@ int gpex_clock_get_voltage(int clk)
 {
 	int idx = gpex_clock_get_table_idx(clk);
 
-	if (idx >= 0 && idx < clk_info.table_size)
-		return clk_info.table[idx].voltage;
-	else {
-		/* TODO: print error msg */
+	if (idx >= 0 && idx < clk_info.table_size) {
+		int voltage = clk_info.table[idx].voltage;
+		pr_info("[gpex_clock] voltage lookup %d kHz -> idx %d = %d uV\n",
+			clk, idx, voltage);
+		return voltage;
+	} else {
+		pr_info("[gpex_clock] voltage lookup failed for %d kHz (idx=%d)\n",
+			clk, idx);
 		return -EINVAL;
 	}
 }
