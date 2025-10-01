@@ -113,10 +113,10 @@ static int gpex_clock_update_config_data_from_dt(void)
 	pr_info("[gpex_clock] ASV levels reported=%d\n", asv_lv_num);
 
 	for (i = 0; i < asv_lv_num; i++) {
-		int cal_freq = fv_array[i].freq;
-		int cal_vol = fv_array[i].volt;
-		dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
-		bool matched = false;
+	        int cal_freq = fv_array[i].freq;
+	        int cal_vol = fv_array[i].volt;
+	        dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
+	        bool matched = false;
 
 		if (cal_freq <= clk_info.gpu_max_clock && cal_freq >= clk_info.gpu_min_clock) {
 			for (j = 0; j < clk_info.table_size; j++) {
@@ -133,15 +133,41 @@ static int gpex_clock_update_config_data_from_dt(void)
 				cal_freq);
 		}
 
-		if (!matched)
-			pr_info("[gpex_clock]   no DT match for %8d kHz\n", cal_freq);
+	        if (!matched)
+	                pr_info("[gpex_clock]   no DT match for %8d kHz\n", cal_freq);
+	}
+
+	{
+	        u32 manual_cnt = 0;
+	        const struct gpu_manual_volt_entry *manual_table =
+	                gpexbe_devicetree_get_manual_volt_table(&manual_cnt);
+
+	        if (manual_table && manual_cnt) {
+	                dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
+	                int m;
+
+	                for (m = 0; m < manual_cnt; m++) {
+	                        int manual_freq = manual_table[m].clock;
+	                        int manual_volt = manual_table[m].voltage;
+
+	                        for (j = 0; j < clk_info.table_size; j++) {
+	                                if (dt_clock_table[j].clock == manual_freq) {
+	                                        clk_info.table[j].clock = manual_freq;
+	                                        clk_info.table[j].voltage = manual_volt;
+	                                        pr_info("[gpex_clock]   manual dt idx %02d -> %8d kHz @ %d uV\n",
+	                                                j, manual_freq, manual_volt);
+	                                        break;
+	                                }
+	                        }
+	                }
+	        }
 	}
 
 	for (j = 0; j < clk_info.table_size; j++) {
-		dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
+	        dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
 
-		if (!clk_info.table[j].clock)
-			pr_info("[gpex_clock]   DT idx %02d (%8d kHz) left empty\n", j,
+	        if (!clk_info.table[j].clock)
+	                pr_info("[gpex_clock]   DT idx %02d (%8d kHz) left empty\n", j,
 				dt_clock_table[j].clock);
 		else
 			pr_info("[gpex_clock]   DT idx %02d final %8d kHz @ %d uV\n", j,
