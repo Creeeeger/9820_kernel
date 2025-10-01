@@ -170,7 +170,7 @@ GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 		}
 
 		if (clock > gpex_clock_get_max_clock_limit()) {
-			pr_info("[gpex_clock_sysfs] max lock request %d clamped to %d with max %d\n",
+			pr_info("[gpex_clock_sysfs] max lock request %d not clamped to %d with max %d\n",
 				clock, gpex_clock_get_max_clock_limit(), gpex_clock_get_max_clock());
 		}
 
@@ -266,15 +266,11 @@ GPEX_STATIC ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 		}
 
 		if (clock > gpex_clock_get_max_clock_limit()) {
-			pr_info("[gpex_clock_sysfs] min lock request %d clamped to %d\n",
-				clock, gpex_clock_get_max_clock_limit());
-			clock = gpex_clock_get_max_clock_limit();
+			pr_info("[gpex_clock_sysfs] min lock request %d not clamped to %d with min clock %d\n",
+				clock, gpex_clock_get_max_clock_limit(), gpex_clock_get_min_clock());
 		}
-
-		if (clock == gpex_clock_get_min_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
-		else
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, SYSFS_LOCK, clock);
+		
+		gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, SYSFS_LOCK, clock);
 	}
 
 	return count;
