@@ -1,6 +1,7 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/io.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
@@ -430,19 +431,28 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
 			continue;
-		pr_info("dvfs_type : %s - id : %x\n",
-			vclk->name, fvmap_header[i].dvfs_type);
-		pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
-		pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+                pr_info("dvfs_type : %s - id : %x\n",
+                        vclk->name, fvmap_header[i].dvfs_type);
+                pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
+                pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+                if (!strcmp(vclk->name, "dvfs_g3d")) {
+                        pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
+                        pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
+                }
 
 		old = sram_base + fvmap_header[i].o_ratevolt;
 		new = map_base + fvmap_header[i].o_ratevolt;
 
 		check_percent_margin(old, fvmap_header[i].num_of_lv);
 
-		margin = init_margin_table[vclk->margin_id];
-		if (margin)
-			cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
+                margin = init_margin_table[vclk->margin_id];
+                if (margin) {
+                        pr_info("  Applying init margin %d uV for %s\n",
+                                margin, vclk->name);
+                        cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
+                } else if (!strcmp(vclk->name, "dvfs_g3d")) {
+                        pr_info("  No init margin configured for %s\n", vclk->name);
+                }
 
 		for (j = 0; j < fvmap_header[i].num_of_members; j++) {
 			clks = sram_base + fvmap_header[i].o_members;
@@ -473,9 +483,13 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
-			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
-				new->table[j].rate, new->table[j].volt,
-				volt_offset_percent);
+                        pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
+                                new->table[j].rate, new->table[j].volt,
+                                volt_offset_percent);
+                        if (!strcmp(vclk->name, "dvfs_g3d"))
+                                pr_info("    -> G3D level %d rate %d uV %d\n", j,
+                                        new->table[j].rate,
+                                        new->table[j].volt);
 		}
 
 		old_param = sram_base + fvmap_header[i].o_tables;
