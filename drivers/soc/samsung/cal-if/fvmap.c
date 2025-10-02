@@ -12,6 +12,7 @@
 #include <soc/samsung/cal-if.h>
 
 #include "fvmap.h"
+#include "gpu_dvfs_overrides.h"
 #include "cmucal.h"
 #include "vclk.h"
 #include "ra.h"
@@ -513,18 +514,33 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
-       	if (!strcmp(vclk->name, "dvfs_g3d") &&
-			    new->table[j].rate == 754000 &&
-			    new->table[j].volt != 725000) {
-				if (new->table[j].volt)
-					pr_info("  Overriding G3D rate %d uV from %d to %d\n",
-						new->table[j].rate,
-						new->table[j].volt, 725000);
-				else
-					pr_info("  Applying G3D voltage %d uV for rate %d\n",
-						725000, new->table[j].rate);
+			if (!strcmp(vclk->name, "dvfs_g3d") &&
+			    gpu_dvfs_has_overrides()) {
+				size_t override_idx;
 
-				new->table[j].volt = 725000;
+				for (override_idx = 0;
+				     override_idx < gpu_dvfs_override_count();
+				     override_idx++) {
+					const struct gpu_dvfs_override_entry *entry;
+
+					entry = gpu_dvfs_override_get(override_idx);
+					if (!entry ||
+					    new->table[j].rate != entry->rate_khz)
+						continue;
+
+					if (new->table[j].volt != entry->volt_uv) {
+						if (new->table[j].volt)
+                                                        pr_info("  Overriding G3D rate %d uV from %d to %d\n",
+								new->table[j].rate,
+								new->table[j].volt,
+								entry->volt_uv);
+						else
+                                                        pr_info("  Applying G3D voltage %d uV for rate %d\n",
+								entry->volt_uv, new->table[j].rate);
+
+						new->table[j].volt = entry->volt_uv;
+        				}
+				}
 			}
 			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
 				new->table[j].rate, new->table[j].volt,
