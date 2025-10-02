@@ -88,6 +88,8 @@ int gpex_clock_prepare_runtime_off(void);
  */
 int gpex_clock_set(int clk);
 
+void gpex_clock_sync_min_lock_on_resume(void);
+
 /**
  * gpex_clock_lock_clock() - set GPU clock max or min lock
  * @lock_command: requested command max/min lock/unlock

@@ -326,6 +326,8 @@ int gpex_pm_runtime_on_prepare(struct device *dev)
 
 	gpexwa_wakeup_clock_restore();
 
+	gpex_clock_sync_min_lock_on_resume();
+
 	return 0;
 }
 
