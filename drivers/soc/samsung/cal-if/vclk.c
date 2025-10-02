@@ -2,6 +2,7 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 #include <soc/samsung/ect_parser.h>
 
 #include "cmucal.h"
@@ -432,12 +433,9 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 	unsigned int original_max_rate = 0;
 	unsigned long highest_override = 0;
 	size_t override_count = 0;
-	size_t override_plan_count = 0;
-	struct gpu_override_plan {
-		const struct gpu_dvfs_override_entry *entry;
-		int index;
-	} *plans = NULL;
 	bool is_gpu = false;
+	bool descending = false;
+	int current_num_rates;
 	int ret = 0;
 	char buf[32];
 
@@ -471,31 +469,108 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 	alloc_num_rates = original_num_rates;
 	is_gpu = !strcmp(vclk->name, "dvfs_g3d");
 
-		if (is_gpu && gpu_dvfs_has_overrides()) {
-		int current_num_rates = original_num_rates;
+	if (is_gpu && gpu_dvfs_has_overrides()) {
+		override_count = gpu_dvfs_override_count();
+		if (override_count)
+			alloc_num_rates += override_count;
+	}
 
-		if (override_plan_count > 1) {
-			size_t a, b;
+	if (minmax_table != NULL) {
+		vclk->min_freq = minmax_table[MINMAX_MIN_FREQ] * 1000;
+		vclk->max_freq = minmax_table[MINMAX_MAX_FREQ] * 1000;
+	}
+	pr_debug("ACPM_DVFS :%s\n", vclk->name);
 
-			for (a = 0; a < override_plan_count - 1; a++) {
-				for (b = a + 1; b < override_plan_count; b++) {
-					if (plans[b].index > plans[a].index) {
-						struct gpu_override_plan tmp = plans[a];
+	vclk->list = kzalloc(sizeof(unsigned int) * vclk->num_list, GFP_KERNEL);
+	if (!vclk->list)
+		return -EVCLKNOMEM;
 
-						plans[a] = plans[b];
-						plans[b] = tmp;
-					}
-				}
-			}
+	vclk->lut = kzalloc(sizeof(struct vclk_lut) * alloc_num_rates, GFP_KERNEL);
+	if (!vclk->lut) {
+		ret = -EVCLKNOMEM;
+		goto err_nomem1;
+	}
+
+	for (i = 0; i < original_num_rates; i++) {
+		vclk->lut[i].rate = dvfs_domain->list_level[i].level;
+		params = kcalloc(vclk->num_list, sizeof(int), GFP_KERNEL);
+		if (!params) {
+			ret = -EVCLKNOMEM;
+			if (i == 0)
+				goto err_nomem2;
+			for (i = i - 1; i >= 0; i--)
+				kfree(vclk->lut[i].params);
+			goto err_nomem2;
 		}
 
-		for (i = 0; i < override_plan_count; i++) {
-			const struct gpu_dvfs_override_entry *entry = plans[i].entry;
-			int insert_idx = plans[i].index;
-			unsigned int *override_params;
-			int template_idx;
+		for (j = 0; j < vclk->num_list; ++j) {
+			idx = i * vclk->num_list + j;
+			params[j] = dvfs_domain->list_dvfs_value[idx];
+		}
+		vclk->lut[i].params = params;
+	}
+	vclk->boot_freq = 0;
+	vclk->resume_freq = 0;
 
+	if (minmax_table != NULL) {
+		for (i = 0; i <  vclk->num_rates; i++) {
+			if (vclk->lut[i].rate == minmax_table[MINMAX_BOOT_FREQ] * 1000)
+				vclk->boot_freq = vclk->lut[i].rate;
+		}
+
+		for (i = 0; i < vclk->num_rates; i++) {
+			if (vclk->lut[i].rate == minmax_table[MINMAX_RESUME_FREQ] * 1000)
+				vclk->resume_freq = vclk->lut[i].rate;
+		}
+	} else {
+		if (dvfs_domain->boot_level_idx != -1)
+			vclk->boot_freq = vclk->lut[dvfs_domain->boot_level_idx].rate;
+
+		if (dvfs_domain->resume_level_idx != -1)
+			vclk->resume_freq = vclk->lut[dvfs_domain->resume_level_idx].rate;
+	}
+
+	current_num_rates = original_num_rates;
+
+	for (i = 0; i < original_num_rates; i++)
+		if (vclk->lut[i].rate > original_max_rate)
+			original_max_rate = vclk->lut[i].rate;
+
+	if (original_num_rates >= 2)
+		descending = vclk->lut[1].rate < vclk->lut[0].rate;
+
+	if (is_gpu && override_count) {
+		size_t override_idx;
+
+		for (override_idx = 0; override_idx < override_count; override_idx++) {
+			const struct gpu_dvfs_override_entry *entry;
+			unsigned int *override_params;
+			int insert_idx = current_num_rates;
+			int template_idx;
+			bool found = false;
+
+			entry = gpu_dvfs_override_get(override_idx);
 			if (!entry)
+				continue;
+
+			highest_override = max(highest_override, entry->rate_khz);
+
+			for (i = 0; i < current_num_rates; i++) {
+				if (vclk->lut[i].rate == entry->rate_khz) {
+					found = true;
+					break;
+				}
+
+				if (descending) {
+					if (entry->rate_khz > vclk->lut[i].rate && insert_idx == current_num_rates)
+						insert_idx = i;
+				} else {
+					if (entry->rate_khz < vclk->lut[i].rate && insert_idx == current_num_rates)
+						insert_idx = i;
+				}
+			}
+
+			if (found)
 				continue;
 
 			if (insert_idx > current_num_rates)
@@ -503,7 +578,7 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 
 			if (!current_num_rates) {
 				ret = -EVCLKNOMEM;
-				goto err_nomem2;
+				goto err_nomem_override;
 			}
 
 			template_idx = (insert_idx < current_num_rates) ? insert_idx : current_num_rates - 1;
@@ -511,13 +586,10 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 			override_params = kcalloc(vclk->num_list, sizeof(int), GFP_KERNEL);
 			if (!override_params) {
 				ret = -EVCLKNOMEM;
-				for (k = current_num_rates - 1; k >= 0; k--)
-					kfree(vclk->lut[k].params);
-				goto err_nomem2;
+				goto err_nomem_override;
 			}
 
-			memcpy(override_params, vclk->lut[template_idx].params,
-			       sizeof(int) * vclk->num_list);
+			memcpy(override_params, vclk->lut[template_idx].params, sizeof(int) * vclk->num_list);
 
 			for (k = current_num_rates; k > insert_idx; k--)
 				vclk->lut[k] = vclk->lut[k - 1];
@@ -542,36 +614,31 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 			vclk->min_freq = vclk->max_freq;
 
 		if (highest_override)
-			pr_info("[vclk] dvfs_g3d max frequency overridden to %lu KHz (was %u)\n",
-			highest_override, original_max_rate);
+			pr_info("[vclk] dvfs_g3d max frequency overridden to %lu KHz (was %u)\n", highest_override, original_max_rate);
 	} else {
 		vclk->num_rates = original_num_rates;
 	}
 
-
-	kfree(plans);
-
-	pr_info("[vclk] %s domain: levels=%d clocks=%d min=%u max=%u boot=%u resume=%u (minmax=%s)\n",		vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq, vclk->max_freq,
-vclk->boot_freq, vclk->resume_freq, minmax_table ? "override" : "absent");
+	pr_info("[vclk] %s domain: levels=%d clocks=%d min=%u max=%u boot=%u resume=%u (minmax=%s)\n", vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq, vclk->max_freq, vclk->boot_freq, vclk->resume_freq, minmax_table ? "override" : "absent");
 
 	if (!strcmp(vclk->name, "dvfs_g3d")) {
-		pr_info("[vclk] dvfs_g3d boot_idx=%d resume_idx=%d table_ver=%u\n",
-				dvfs_domain->boot_level_idx, dvfs_domain->resume_level_idx, asv_table_ver);
+		pr_info("[vclk] dvfs_g3d boot_idx=%d resume_idx=%d table_ver=%u\n", dvfs_domain->boot_level_idx, dvfs_domain->resume_level_idx, asv_table_ver);
 		for (i = 0; i < vclk->num_rates; i++)
 			pr_info("[vclk]   g3d lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
 	}
 
 	return ret;
+
+err_nomem_override:
+	while (current_num_rates-- > 0)
+		kfree(vclk->lut[current_num_rates].params);
 err_nomem2:
-	kfree(plans);
 	kfree(vclk->lut);
 err_nomem1:
-	kfree(plans);
 	kfree(vclk->list);
 
 	return ret;
 }
-
 static struct ect_voltage_table *get_max_min_freq_lv(struct ect_voltage_domain *domain, unsigned int version, int *max_lv, int *min_lv)
 {
 	int i;
