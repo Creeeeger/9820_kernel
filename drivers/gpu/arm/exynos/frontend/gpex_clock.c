@@ -456,6 +456,30 @@ int gpex_clock_get_clock_slow(void)
 	return gpexbe_clock_get_rate();
 }
 
+void gpex_clock_sync_min_lock_on_resume(void)
+{
+	int min_lock;
+	int hw_clock;
+	bool power_on;
+
+	min_lock = gpex_clock_get_min_lock();
+	if (min_lock <= 0)
+		return;
+
+	gpex_pm_lock();
+	power_on = gpex_pm_get_status(false);
+	hw_clock = power_on ? gpex_clock_get_clock_slow() : 0;
+	gpex_pm_unlock();
+
+	if (!power_on)
+		return;
+
+	if ((hw_clock > 0) && (hw_clock >= min_lock))
+		return;
+
+	gpex_clock_set(min_lock);
+}
+
 int gpex_clock_set(int clk)
 {
 	int ret = 0, target_clk = 0;
