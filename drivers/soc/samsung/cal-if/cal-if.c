@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/debug-snapshot.h>
 #include <linux/printk.h>
+#include <linux/string.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/cal-if.h>
 #ifdef CONFIG_EXYNOS9820_BTS
@@ -30,6 +31,17 @@
 
 static DEFINE_SPINLOCK(pmucal_cpu_lock);
 
+static bool cal_is_gpu_dvfs_id(unsigned int id)
+{
+        struct vclk *vclk;
+
+        vclk = cmucal_get_node(id);
+        if (!vclk || !vclk->name)
+                return false;
+
+        return !strcmp(vclk->name, "dvfs_g3d");
+}
+
 unsigned int cal_clk_is_enabled(unsigned int id)
 {
 	return 0;
@@ -37,7 +49,22 @@ unsigned int cal_clk_is_enabled(unsigned int id)
 
 unsigned long cal_dfs_get_max_freq(unsigned int id)
 {
-	return vclk_get_max_freq(id);
+	struct vclk *vclk;
+
+	if (!cal_is_gpu_dvfs_id(id))
+		return vclk_get_max_freq(id);
+
+	vclk = cmucal_get_node(id);
+	if (vclk && vclk->lut) {
+		unsigned int override_rate = 754000;
+
+		if (vclk->max_freq < override_rate)
+			vclk->max_freq = override_rate;
+
+		return override_rate;
+	}
+
+	return 754000;
 }
 
 unsigned long cal_dfs_get_min_freq(unsigned int id)
@@ -121,6 +148,22 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
 	int ret;
 
 	ret = vclk_get_rate_table(id, table);
+
+	if (cal_is_gpu_dvfs_id(id) && ret > 0) {
+		unsigned long highest_rate = 0;
+		int max_idx = -1;
+		int i;
+
+		for (i = 0; i < ret; i++) {
+			if (table[i] >= highest_rate) {
+				highest_rate = table[i];
+				max_idx = i;
+			}
+		}
+
+		if (max_idx >= 0)
+			table[max_idx] = 754000;
+	}
 
 	return ret;
 }
@@ -340,7 +383,30 @@ extern int cal_is_lastcore_detecting(unsigned int cpu)
 
 int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 {
-	return fvmap_get_voltage_table(id, table);
+        int entries;
+
+        entries = fvmap_get_voltage_table(id, table);
+
+        if (entries > 0 && cal_is_gpu_dvfs_id(id)) {
+                struct vclk *vclk = cmucal_get_node(id);
+                unsigned int highest_rate = 0;
+                int max_idx = -1;
+                int i;
+
+                if (vclk && vclk->num_rates == entries) {
+                        for (i = 0; i < entries; i++) {
+                                if (vclk->lut[i].rate >= highest_rate) {
+                                        highest_rate = vclk->lut[i].rate;
+                                        max_idx = i;
+                                }
+                        }
+
+                        if (max_idx >= 0)
+                                table[max_idx] = 725000;
+                }
+        }
+
+        return entries;
 }
 
 void cal_dfs_set_volt_margin(unsigned int id, int volt)
@@ -350,10 +416,10 @@ void cal_dfs_set_volt_margin(unsigned int id, int volt)
 }
 
 int cal_dfs_get_rate_asv_table(unsigned int id,
-				       struct dvfs_rate_volt *table)
+                                       struct dvfs_rate_volt *table)
 {
-	unsigned long rate[48];
-	unsigned int volt[48];
+        unsigned long rate[48];
+        unsigned int volt[48];
 	int num_of_entry;
 	int idx;
 
@@ -372,12 +438,30 @@ int cal_dfs_get_rate_asv_table(unsigned int id,
 	pr_info("[cal-if] id %x exporting %d rate/asv entries\n",
 		id, num_of_entry);
 
-	for (idx = 0; idx < num_of_entry; idx++) {
-		table[idx].rate = rate[idx];
-		table[idx].volt = volt[idx];
-	}
+        for (idx = 0; idx < num_of_entry; idx++) {
+                table[idx].rate = rate[idx];
+                table[idx].volt = volt[idx];
+        }
 
-	return num_of_entry;
+        if (cal_is_gpu_dvfs_id(id)) {
+                unsigned long highest_rate = 0;
+                int max_idx = -1;
+                int i;
+
+                for (i = 0; i < num_of_entry; i++) {
+                        if (table[i].rate >= highest_rate) {
+                                highest_rate = table[i].rate;
+                                max_idx = i;
+                        }
+                }
+
+                if (max_idx >= 0) {
+                        table[max_idx].rate = 754000;
+                        table[max_idx].volt = 725000;
+                }
+        }
+
+        return num_of_entry;
 }
 
 int cal_asv_get_ids_info(unsigned int id)
