@@ -33,13 +33,13 @@ static DEFINE_SPINLOCK(pmucal_cpu_lock);
 
 static bool cal_is_gpu_dvfs_id(unsigned int id)
 {
-        struct vclk *vclk;
+	struct vclk *vclk;
 
-        vclk = cmucal_get_node(id);
-        if (!vclk || !vclk->name)
-                return false;
+	vclk = cmucal_get_node(id);
+	if (!vclk || !vclk->name)
+		return false;
 
-        return !strcmp(vclk->name, "dvfs_g3d");
+	return !strcmp(vclk->name, "dvfs_g3d");
 }
 
 unsigned int cal_clk_is_enabled(unsigned int id)
@@ -150,19 +150,31 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
 	ret = vclk_get_rate_table(id, table);
 
 	if (cal_is_gpu_dvfs_id(id) && ret > 0) {
+		const unsigned long override_rate = 754000;
 		unsigned long highest_rate = 0;
+		bool has_override = false;
 		int max_idx = -1;
 		int i;
 
 		for (i = 0; i < ret; i++) {
+			if (table[i] == override_rate) {
+				has_override = true;
+				break;
+			}
+
 			if (table[i] >= highest_rate) {
 				highest_rate = table[i];
 				max_idx = i;
 			}
 		}
 
-		if (max_idx >= 0)
-			table[max_idx] = 754000;
+		if (!has_override && max_idx >= 0) {
+			for (i = ret; i > max_idx; i--)
+				table[i] = table[i - 1];
+
+			table[max_idx] = override_rate;
+			ret++;
+		}
 	}
 
 	return ret;
@@ -383,30 +395,39 @@ extern int cal_is_lastcore_detecting(unsigned int cpu)
 
 int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 {
-        int entries;
+	int entries;
 
-        entries = fvmap_get_voltage_table(id, table);
+	entries = fvmap_get_voltage_table(id, table);
 
-        if (entries > 0 && cal_is_gpu_dvfs_id(id)) {
-                struct vclk *vclk = cmucal_get_node(id);
-                unsigned int highest_rate = 0;
-                int max_idx = -1;
-                int i;
+	if (entries > 0 && cal_is_gpu_dvfs_id(id)) {
+		const unsigned int override_rate = 754000;
+		const unsigned int override_volt = 725000;
+		struct vclk *vclk = cmucal_get_node(id);
+		int insert_idx = -1;
+		int i;
 
-                if (vclk && vclk->num_rates == entries) {
-                        for (i = 0; i < entries; i++) {
-                                if (vclk->lut[i].rate >= highest_rate) {
-                                        highest_rate = vclk->lut[i].rate;
-                                        max_idx = i;
-                                }
-                        }
+		if (vclk && vclk->lut) {
+			for (i = 0; i < vclk->num_rates; i++) {
+				if (vclk->lut[i].rate == override_rate) {
+					insert_idx = i;
+					break;
+				}
+			}
+		}
 
-                        if (max_idx >= 0)
-                                table[max_idx] = 725000;
-                }
-        }
+		if (insert_idx >= 0) {
+			if (insert_idx > entries)
+				insert_idx = entries;
 
-        return entries;
+			for (i = entries; i > insert_idx; i--)
+				table[i] = table[i - 1];
+
+			table[insert_idx] = override_volt;
+			entries++;
+		}
+	}
+
+	return entries;
 }
 
 void cal_dfs_set_volt_margin(unsigned int id, int volt)
@@ -416,10 +437,10 @@ void cal_dfs_set_volt_margin(unsigned int id, int volt)
 }
 
 int cal_dfs_get_rate_asv_table(unsigned int id,
-                                       struct dvfs_rate_volt *table)
+				       struct dvfs_rate_volt *table)
 {
-        unsigned long rate[48];
-        unsigned int volt[48];
+	unsigned long rate[48];
+	unsigned int volt[48];
 	int num_of_entry;
 	int idx;
 
@@ -438,30 +459,43 @@ int cal_dfs_get_rate_asv_table(unsigned int id,
 	pr_info("[cal-if] id %x exporting %d rate/asv entries\n",
 		id, num_of_entry);
 
-        for (idx = 0; idx < num_of_entry; idx++) {
-                table[idx].rate = rate[idx];
-                table[idx].volt = volt[idx];
-        }
+	for (idx = 0; idx < num_of_entry; idx++) {
+		table[idx].rate = rate[idx];
+		table[idx].volt = volt[idx];
+	}
 
-        if (cal_is_gpu_dvfs_id(id)) {
-                unsigned long highest_rate = 0;
-                int max_idx = -1;
-                int i;
+	if (cal_is_gpu_dvfs_id(id)) {
+		const unsigned long override_rate = 754000;
+		const unsigned int override_volt = 725000;
+		bool has_override = false;
+		int insert_idx = -1;
+		int i;
 
-                for (i = 0; i < num_of_entry; i++) {
-                        if (table[i].rate >= highest_rate) {
-                                highest_rate = table[i].rate;
-                                max_idx = i;
-                        }
-                }
+		for (i = 0; i < num_of_entry; i++) {
+			if (table[i].rate == override_rate) {
+				has_override = true;
+				break;
+			}
 
-                if (max_idx >= 0) {
-                        table[max_idx].rate = 754000;
-                        table[max_idx].volt = 725000;
-                }
-        }
+			if (insert_idx < 0 ||
+			    table[i].rate >= table[insert_idx].rate)
+				insert_idx = i;
+		}
 
-        return num_of_entry;
+		if (!has_override && insert_idx >= 0) {
+			if (insert_idx > num_of_entry)
+				insert_idx = num_of_entry;
+
+			for (i = num_of_entry; i > insert_idx; i--)
+				table[i] = table[i - 1];
+
+			table[insert_idx].rate = override_rate;
+			table[insert_idx].volt = override_volt;
+			num_of_entry++;
+		}
+	}
+
+	return num_of_entry;
 }
 
 int cal_asv_get_ids_info(unsigned int id)
