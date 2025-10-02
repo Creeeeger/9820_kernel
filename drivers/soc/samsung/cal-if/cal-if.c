@@ -49,7 +49,22 @@ unsigned int cal_clk_is_enabled(unsigned int id)
 
 unsigned long cal_dfs_get_max_freq(unsigned int id)
 {
-	return vclk_get_max_freq(id);
+	struct vclk *vclk;
+
+	if (!cal_is_gpu_dvfs_id(id))
+		return vclk_get_max_freq(id);
+
+	vclk = cmucal_get_node(id);
+	if (vclk && vclk->lut) {
+		unsigned int override_rate = 754000;
+
+		if (vclk->max_freq < override_rate)
+			vclk->max_freq = override_rate;
+
+		return override_rate;
+	}
+
+	return 754000;
 }
 
 unsigned long cal_dfs_get_min_freq(unsigned int id)
@@ -133,6 +148,22 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
 	int ret;
 
 	ret = vclk_get_rate_table(id, table);
+
+	if (cal_is_gpu_dvfs_id(id) && ret > 0) {
+		unsigned long highest_rate = 0;
+		int max_idx = -1;
+		int i;
+
+		for (i = 0; i < ret; i++) {
+			if (table[i] >= highest_rate) {
+				highest_rate = table[i];
+				max_idx = i;
+			}
+		}
+
+		if (max_idx >= 0)
+			table[max_idx] = 754000;
+	}
 
 	return ret;
 }
