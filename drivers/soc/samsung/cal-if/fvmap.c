@@ -19,7 +19,6 @@
 
 #define FVMAP_SIZE		(SZ_8K)
 #define STEP_UV			(6250)
-#define FVMAP_DUMP_PATH			"/data/media/0/fvmap_dump.bin"
 
 void __iomem *fvmap_base;
 void __iomem *sram_fvmap_base;
@@ -27,32 +26,6 @@ void __iomem *sram_fvmap_base;
 static int init_margin_table[MAX_MARGIN_ID];
 static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
-
-static void fvmap_log_sram_image(void __iomem *sram_base)
-{
-        u8 *buf;
-
-        if (!sram_base) {
-                pr_err("%s: SRAM base is NULL, skipping in-kernel dump\n",
-                       __func__);
-                return;
-        }
-
-        buf = kmalloc(FVMAP_SIZE, GFP_KERNEL);
-        if (!buf) {
-                pr_err("%s: failed to allocate %zu bytes for SRAM log buffer\n",
-                       __func__, FVMAP_SIZE);
-                return;
-        }
-
-        memcpy_fromio(buf, sram_base, FVMAP_SIZE);
-        pr_info("%s: dumping %zu bytes of SRAM FVMAP into the kernel log\n",
-                __func__, FVMAP_SIZE);
-        print_hex_dump(KERN_INFO, "[fvmap] ", DUMP_PREFIX_OFFSET, 32, 1,
-                       buf, FVMAP_SIZE, false);
-
-        kfree(buf);
-}
 
 static int __init get_mif_volt(char *str)
 {
@@ -462,10 +435,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
 			continue;
-                pr_info("dvfs_type : %s - id : %x\n",
-                        vclk->name, fvmap_header[i].dvfs_type);
+                pr_info("dvfs_type : %s - id : %x\n", vclk->name, fvmap_header[i].dvfs_type);
                 pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
                 pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+		
                 if (!strcmp(vclk->name, "dvfs_g3d")) {
                         pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
                         pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
@@ -478,8 +451,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 
                 margin = init_margin_table[vclk->margin_id];
                 if (margin) {
-                        pr_info("  Applying init margin %d uV for %s\n",
-                                margin, vclk->name);
+                        pr_info("  Applying init margin %d uV for %s\n", margin, vclk->name);
                         cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
                 } else if (!strcmp(vclk->name, "dvfs_g3d")) {
                         pr_info("  No init margin configured for %s\n", vclk->name);
@@ -492,7 +464,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				plls = sram_base + clks->addr[j];
 				member_addr = plls->addr - 0x90000000;
 			} else {
-
 				member_addr = (clks->addr[j] & ~0x3) & 0xffff;
 				blk_idx = clks->addr[j] & 0x3;
 
@@ -514,41 +485,31 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
-			if (!strcmp(vclk->name, "dvfs_g3d") &&
-			    gpu_dvfs_has_overrides()) {
+			
+			if (!strcmp(vclk->name, "dvfs_g3d") && gpu_dvfs_has_overrides()) {
 				size_t override_idx;
 
-				for (override_idx = 0;
-				     override_idx < gpu_dvfs_override_count();
-				     override_idx++) {
+				for (override_idx = 0; override_idx < gpu_dvfs_override_count(); override_idx++) {
 					const struct gpu_dvfs_override_entry *entry;
 
 					entry = gpu_dvfs_override_get(override_idx);
-					if (!entry ||
-					    new->table[j].rate != entry->rate_khz)
+					
+					if (!entry || new->table[j].rate != entry->rate_khz)
 						continue;
 
 					if (new->table[j].volt != entry->volt_uv) {
-						if (new->table[j].volt)
-                                                        pr_info("  Overriding G3D rate %d uV from %d to %d\n",
-								new->table[j].rate,
-								new->table[j].volt,
-								entry->volt_uv);
-						else
-                                                        pr_info("  Applying G3D voltage %d uV for rate %d\n",
-								entry->volt_uv, new->table[j].rate);
-
+						if (new->table[j].volt) {
+                        	pr_info("  Overriding G3D rate %d uV from %d to %d\n", new->table[j].rate, new->table[j].volt, entry->volt_uv);
+						} else {
+                           	pr_info("  Applying G3D voltage %d uV for rate %d\n",entry->volt_uv, new->table[j].rate);
+						}
+						
 						new->table[j].volt = entry->volt_uv;
-        				}
+        			}
 				}
 			}
-			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
-				new->table[j].rate, new->table[j].volt,
-				volt_offset_percent);
-			if (!strcmp(vclk->name, "dvfs_g3d"))
-				pr_info("    -> G3D level %d rate %d uV %d\n", j,
-					new->table[j].rate,
-					new->table[j].volt);
+			
+			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n", new->table[j].rate, new->table[j].volt, volt_offset_percent);
 		}
 
 		old_param = sram_base + fvmap_header[i].o_tables;
@@ -578,9 +539,9 @@ int fvmap_init(void __iomem *sram_base)
 
 	fvmap_base = map_base;
 	sram_fvmap_base = sram_base;
+	
 	pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
 	fvmap_copy_from_sram(map_base, sram_base);
-	fvmap_log_sram_image(sram_base);
 
 	/* percent margin for each doamin at runtime */
 	kobj = kobject_create_and_add("percent_margin", power_kobj);
