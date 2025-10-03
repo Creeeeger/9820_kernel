@@ -41,12 +41,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-case "$MODEL" in
-    beyond)
-        MODEL="beyond1lte"
-        ;;
-esac
-
 echo "Preparing the build environment..."
 
 pushd $(dirname "$0") > /dev/null
@@ -73,8 +67,6 @@ if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     echo "Cleaning up..."
     popd > /dev/null
 fi
-
-KERNEL_DEFCONFIG=exynos9820_defconfig
 
 MAKE_ARGS="
 LLVM=1 \
