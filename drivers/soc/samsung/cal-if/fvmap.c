@@ -527,6 +527,80 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				}
 			}
 		}
+		if (!strcmp(vclk->name, "dvfs_g3d") && gpu_dvfs_has_overrides()) {
+			unsigned int original_lv = fvmap_header[i].num_of_lv;
+			unsigned int current_lv = original_lv;
+			size_t override_count = gpu_dvfs_override_count();
+			unsigned int ratevolt_capacity = 0;
+			bool descending = true;
+			size_t override_idx;
+
+			if (fvmap_header[i].o_tables > fvmap_header[i].o_ratevolt)
+				ratevolt_capacity = (fvmap_header[i].o_tables - fvmap_header[i].o_ratevolt) /
+					sizeof(struct rate_volt);
+
+			if (original_lv >= 2)
+				descending = new->table[1].rate < new->table[0].rate;
+
+			if (!ratevolt_capacity)
+				ratevolt_capacity = original_lv;
+
+			if (ratevolt_capacity < original_lv + override_count)
+				pr_warn("  G3D rate table capacity %u insufficient for %zu overrides\n",
+					ratevolt_capacity, override_count);
+
+			for (override_idx = 0; override_idx < override_count; override_idx++) {
+				const struct gpu_dvfs_override_entry *entry;
+				unsigned int insert_idx = current_lv;
+				unsigned int idx;
+				bool found = false;
+
+				entry = gpu_dvfs_override_get(override_idx);
+				if (!entry)
+					continue;
+
+				for (idx = 0; idx < current_lv; idx++) {
+					if (new->table[idx].rate == entry->rate_khz) {
+						found = true;
+						break;
+					}
+
+					if (descending) {
+						if (entry->rate_khz > new->table[idx].rate && insert_idx == current_lv)
+							insert_idx = idx;
+					} else {
+						if (entry->rate_khz < new->table[idx].rate && insert_idx == current_lv)
+							insert_idx = idx;
+					}
+				}
+
+				if (found)
+					continue;
+
+				if (current_lv >= ratevolt_capacity) {
+					pr_warn("  Unable to append G3D override %lu KHz @ %u uV (capacity %u)\n",
+						entry->rate_khz, entry->volt_uv, ratevolt_capacity);
+					continue;
+				}
+
+				if (insert_idx > current_lv)
+					insert_idx = current_lv;
+
+				if (insert_idx < current_lv)
+					memmove(&new->table[insert_idx + 1], &new->table[insert_idx],
+						(current_lv - insert_idx) * sizeof(struct rate_volt));
+
+				new->table[insert_idx].rate = entry->rate_khz;
+				new->table[insert_idx].volt = entry->volt_uv;
+				current_lv++;
+
+				pr_info("  Added G3D override level %u : rate %lu KHz volt %u uV\n",
+					insert_idx, entry->rate_khz, entry->volt_uv);
+			}
+
+			if (current_lv != original_lv)
+				fvmap_header[i].num_of_lv = current_lv;
+		}
 	}
 }
 
