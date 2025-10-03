@@ -1,0 +1,55 @@
+name: Build Kernel
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc \
+            bison \
+            build-essential \
+            ccache \
+            clang \
+            cpio \
+            flex \
+            libelf-dev \
+            libncurses-dev \
+            libssl-dev \
+            lld \
+            llvm \
+            python3 \
+            rsync \
+            unzip \
+            wget \
+            zip \
+            zstd
+
+      - name: Build kernel
+        run: |
+          chmod +x build.sh
+          ./build.sh --model beyond --ksu y
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-beyond
+          path: |
+            build/out/**/zip/*.zip
+            build/out/**/boot.img
+          if-no-files-found: warn
