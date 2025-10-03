@@ -555,18 +555,18 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				pr_warn("  G3D rate table capacity %u insufficient for %zu overrides\n",
 					ratevolt_capacity, override_count);
 
-	                for (override_idx = 0; override_idx < override_count; override_idx++) {
-	                        const struct gpu_dvfs_override_entry *entry;
-	                        unsigned int insert_idx = current_lv;
-	                        unsigned int idx;
-	                        bool found = false;
-	                        unsigned int template_idx;
-	                        size_t param_words;
-	                        unsigned int *template_block;
+			for (override_idx = 0; override_idx < override_count; override_idx++) {
+				const struct gpu_dvfs_override_entry *entry;
+				unsigned int insert_idx = current_lv;
+				unsigned int idx;
+				bool found = false;
+				unsigned int template_idx;
+				size_t param_words;
+				unsigned int *template_block;
 
-	                        entry = gpu_dvfs_override_get(override_idx);
-	                        if (!entry)
-	                                continue;
+				entry = gpu_dvfs_override_get(override_idx);
+				if (!entry)
+					continue;
 
 				for (idx = 0; idx < current_lv; idx++) {
 					if (new->table[idx].rate == entry->rate_khz) {
@@ -595,69 +595,69 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				if (insert_idx > current_lv)
 					insert_idx = current_lv;
 
-	                        template_idx = (insert_idx < current_lv) ? insert_idx : current_lv - 1;
+				template_idx = (insert_idx < current_lv) ? insert_idx : current_lv - 1;
 
-	                        param_words = fvmap_header[i].num_of_members;
-	                        template_block = NULL;
-	                        if (param_words) {
-	                                size_t dst_offset = insert_idx * param_words;
-	                                size_t src_offset = template_idx * param_words;
+				param_words = fvmap_header[i].num_of_members;
+				template_block = NULL;
+				if (param_words) {
+					size_t dst_offset = insert_idx * param_words;
+					size_t src_offset = template_idx * param_words;
 
-	                                template_block = kmemdup(&new_param_u32[src_offset],
-	                                        param_words * sizeof(unsigned int), GFP_KERNEL);
-	                                if (!template_block) {
-	                                        pr_warn("  Unable to allocate params for G3D override level %u\n",
-	                                                insert_idx);
-	                                        continue;
-	                                }
-
-	                                if (insert_idx < current_lv) {
-	                                        size_t param_count = (current_lv - insert_idx) * param_words;
-
-	                                        memmove(&new_param_u32[dst_offset + param_words],
-	                                                &new_param_u32[dst_offset],
-	                                                param_count * sizeof(unsigned int));
-	                                }
-
-	                                memcpy(&new_param_u32[dst_offset], template_block,
-	                                        param_words * sizeof(unsigned int));
-
-	                                for (k = 0; k < param_words && k < vclk->num_list; k++) {
-	                                        unsigned int clk_id = vclk->list[k];
-
-	                                        if (IS_PLL(clk_id))
-	                                                new_param_u32[dst_offset + k] = entry->rate_khz;
-	                                }
-	                        }
-
-			if (insert_idx < current_lv)
-				memmove(&new->table[insert_idx + 1], &new->table[insert_idx],
-					(current_lv - insert_idx) * sizeof(struct rate_volt));
-
-			new->table[insert_idx].rate = entry->rate_khz;
-			new->table[insert_idx].volt = entry->volt_uv;
-			if (insert_idx < vclk->num_rates)
-				vclk->lut[insert_idx].rate = entry->rate_khz;
-			current_lv++;
-
-			if (template_block) {
-				size_t dst_offset = insert_idx * param_words;
-
-				for (k = 0; k < param_words && k < vclk->num_list; k++) {
-					if (!IS_PLL(vclk->list[k]))
+					template_block = kmemdup(&new_param_u32[src_offset],
+						param_words * sizeof(unsigned int), GFP_KERNEL);
+					if (!template_block) {
+						pr_warn("  Unable to allocate params for G3D override level %u\n",
+							insert_idx);
 						continue;
-					/* ensure vclk LUT matches the fvmap copy if available */
-					if (insert_idx < vclk->num_rates &&
-					    vclk->lut[insert_idx].params)
-						vclk->lut[insert_idx].params[k] =
-							new_param_u32[dst_offset + k];
+					}
+
+					if (insert_idx < current_lv) {
+						size_t param_count = (current_lv - insert_idx) * param_words;
+
+						memmove(&new_param_u32[dst_offset + param_words],
+							&new_param_u32[dst_offset],
+							param_count * sizeof(unsigned int));
+					}
+
+					memcpy(&new_param_u32[dst_offset], template_block,
+						param_words * sizeof(unsigned int));
+
+					for (k = 0; k < param_words && k < vclk->num_list; k++) {
+						unsigned int clk_id = vclk->list[k];
+
+						if (IS_PLL(clk_id))
+							new_param_u32[dst_offset + k] = entry->rate_khz;
+					}
 				}
 
-				kfree(template_block);
-			}
+				if (insert_idx < current_lv)
+					memmove(&new->table[insert_idx + 1], &new->table[insert_idx],
+						(current_lv - insert_idx) * sizeof(struct rate_volt));
 
-			pr_info("  Added G3D override level %u : rate %lu KHz volt %u uV\n",
-				insert_idx, entry->rate_khz, entry->volt_uv);
+				new->table[insert_idx].rate = entry->rate_khz;
+				new->table[insert_idx].volt = entry->volt_uv;
+				if (insert_idx < vclk->num_rates)
+					vclk->lut[insert_idx].rate = entry->rate_khz;
+				current_lv++;
+
+				if (template_block) {
+					size_t dst_offset = insert_idx * param_words;
+
+					for (k = 0; k < param_words && k < vclk->num_list; k++) {
+						if (!IS_PLL(vclk->list[k]))
+							continue;
+						/* ensure vclk LUT matches the fvmap copy if available */
+						if (insert_idx < vclk->num_rates &&
+						    vclk->lut[insert_idx].params)
+							vclk->lut[insert_idx].params[k] =
+								new_param_u32[dst_offset + k];
+					}
+
+					kfree(template_block);
+				}
+
+				pr_info("  Added G3D override level %u : rate %lu KHz volt %u uV\n",
+					insert_idx, entry->rate_khz, entry->volt_uv);
 			}
 
 			if (current_lv != original_lv) {
