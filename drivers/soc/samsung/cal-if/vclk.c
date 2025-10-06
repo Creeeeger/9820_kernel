@@ -591,6 +591,11 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 
 			memcpy(override_params, vclk->lut[template_idx].params, sizeof(int) * vclk->num_list);
 
+			for (k = 0; k < vclk->num_list; k++) {
+				if (IS_PLL(vclk->list[k]))
+				override_params[k] = entry->rate_khz;
+			}
+
 			for (k = current_num_rates; k > insert_idx; k--)
 				vclk->lut[k] = vclk->lut[k - 1];
 

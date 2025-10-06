@@ -18,11 +18,11 @@ struct gpu_dvfs_override_entry {
 };
 
 static const struct gpu_dvfs_override_entry gpu_dvfs_overrides[] = {
-       { 1222000, 818750 },
-       { 1066000, 793750 },
-       { 962000, 781250 },
-       { 845000, 756250 },
-       { 754000, 725000 },
+	{ 1222000, 818750 },
+	{ 1066000, 681250 },
+	{ 962000, 793750 },
+	{ 845000, 668750 },
+	{ 754000, 725000 },
 };
 
 static inline size_t gpu_dvfs_override_count(void)
