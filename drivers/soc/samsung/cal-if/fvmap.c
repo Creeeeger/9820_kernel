@@ -399,6 +399,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 	volatile struct fvmap_header *fvmap_header, *header;
 	struct rate_volt_header *old, *new;
 	struct dvfs_table *old_param, *new_param;
+	unsigned int *old_param_u32, *new_param_u32;
 	struct clocks *clks;
 	struct pll_header *plls;
 	struct vclk *vclk;
@@ -435,27 +436,27 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
 			continue;
-                pr_info("dvfs_type : %s - id : %x\n", vclk->name, fvmap_header[i].dvfs_type);
-                pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
-                pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
+	        pr_info("dvfs_type : %s - id : %x\n", vclk->name, fvmap_header[i].dvfs_type);
+	        pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
+	        pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
 		
-                if (!strcmp(vclk->name, "dvfs_g3d")) {
-                        pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
-                        pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
-                }
+	        if (!strcmp(vclk->name, "dvfs_g3d")) {
+	                pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
+	                pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
+	        }
 
 		old = sram_base + fvmap_header[i].o_ratevolt;
 		new = map_base + fvmap_header[i].o_ratevolt;
 
 		check_percent_margin(old, fvmap_header[i].num_of_lv);
 
-                margin = init_margin_table[vclk->margin_id];
-                if (margin) {
-                        pr_info("  Applying init margin %d uV for %s\n", margin, vclk->name);
-                        cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
-                } else if (!strcmp(vclk->name, "dvfs_g3d")) {
-                        pr_info("  No init margin configured for %s\n", vclk->name);
-                }
+	        margin = init_margin_table[vclk->margin_id];
+	        if (margin) {
+	                pr_info("  Applying init margin %d uV for %s\n", margin, vclk->name);
+	                cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
+	        } else if (!strcmp(vclk->name, "dvfs_g3d")) {
+	                pr_info("  No init margin configured for %s\n", vclk->name);
+	        }
 
 		for (j = 0; j < fvmap_header[i].num_of_members; j++) {
 			clks = sram_base + fvmap_header[i].o_members;
@@ -499,13 +500,13 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 
 					if (new->table[j].volt != entry->volt_uv) {
 						if (new->table[j].volt) {
-                        	pr_info("  Overriding G3D rate %d uV from %d to %d\n", new->table[j].rate, new->table[j].volt, entry->volt_uv);
+	                	pr_info("  Overriding G3D rate %d uV from %d to %d\n", new->table[j].rate, new->table[j].volt, entry->volt_uv);
 						} else {
-                           	pr_info("  Applying G3D voltage %d uV for rate %d\n",entry->volt_uv, new->table[j].rate);
+	                   	pr_info("  Applying G3D voltage %d uV for rate %d\n",entry->volt_uv, new->table[j].rate);
 						}
 						
 						new->table[j].volt = entry->volt_uv;
-        			}
+				}
 				}
 			}
 			
@@ -514,17 +515,155 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 
 		old_param = sram_base + fvmap_header[i].o_tables;
 		new_param = map_base + fvmap_header[i].o_tables;
+
+		old_param_u32 = (unsigned int *)old_param->val;
+		new_param_u32 = (unsigned int *)new_param->val;
+
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			for (k = 0; k < fvmap_header[i].num_of_members; k++) {
 				param_idx = fvmap_header[i].num_of_members * j + k;
-				new_param->val[param_idx] = old_param->val[param_idx];
-				if (vclk->lut[j].params[k] != new_param->val[param_idx]) {
-					vclk->lut[j].params[k] = new_param->val[param_idx];
+				new_param_u32[param_idx] = old_param_u32[param_idx];
+				if (vclk->lut[j].params &&
+				    vclk->lut[j].params[k] != new_param_u32[param_idx]) {
+					vclk->lut[j].params[k] = new_param_u32[param_idx];
 					pr_info("Mis-match %s[%d][%d] : %d %d\n",
 						vclk->name, j, k,
 						vclk->lut[j].params[k],
-						new_param->val[param_idx]);
+						new_param_u32[param_idx]);
 				}
+			}
+		}
+		if (!strcmp(vclk->name, "dvfs_g3d") && gpu_dvfs_has_overrides()) {
+			unsigned int original_lv = fvmap_header[i].num_of_lv;
+			unsigned int current_lv = original_lv;
+			size_t override_count = gpu_dvfs_override_count();
+			unsigned int ratevolt_capacity = 0;
+			bool descending = true;
+			size_t override_idx;
+
+			if (fvmap_header[i].o_tables > fvmap_header[i].o_ratevolt)
+				ratevolt_capacity = (fvmap_header[i].o_tables - fvmap_header[i].o_ratevolt) /
+					sizeof(struct rate_volt);
+
+			if (original_lv >= 2)
+				descending = new->table[1].rate < new->table[0].rate;
+
+			if (!ratevolt_capacity)
+				ratevolt_capacity = original_lv;
+
+			if (ratevolt_capacity < original_lv + override_count)
+				pr_warn("  G3D rate table capacity %u insufficient for %zu overrides\n",
+					ratevolt_capacity, override_count);
+
+	                for (override_idx = 0; override_idx < override_count; override_idx++) {
+	                        const struct gpu_dvfs_override_entry *entry;
+	                        unsigned int insert_idx = current_lv;
+	                        unsigned int idx;
+	                        bool found = false;
+	                        unsigned int template_idx;
+	                        size_t param_words;
+	                        unsigned int *template_block;
+
+	                        entry = gpu_dvfs_override_get(override_idx);
+	                        if (!entry)
+	                                continue;
+
+				for (idx = 0; idx < current_lv; idx++) {
+					if (new->table[idx].rate == entry->rate_khz) {
+						found = true;
+						break;
+					}
+
+					if (descending) {
+						if (entry->rate_khz > new->table[idx].rate && insert_idx == current_lv)
+							insert_idx = idx;
+					} else {
+						if (entry->rate_khz < new->table[idx].rate && insert_idx == current_lv)
+							insert_idx = idx;
+					}
+				}
+
+				if (found)
+					continue;
+
+				if (current_lv >= ratevolt_capacity) {
+					pr_warn("  Unable to append G3D override %lu KHz @ %u uV (capacity %u)\n",
+						entry->rate_khz, entry->volt_uv, ratevolt_capacity);
+					continue;
+				}
+
+				if (insert_idx > current_lv)
+					insert_idx = current_lv;
+
+	                        template_idx = (insert_idx < current_lv) ? insert_idx : current_lv - 1;
+
+	                        param_words = fvmap_header[i].num_of_members;
+	                        template_block = NULL;
+	                        if (param_words) {
+	                                size_t dst_offset = insert_idx * param_words;
+	                                size_t src_offset = template_idx * param_words;
+
+	                                template_block = kmemdup(&new_param_u32[src_offset],
+	                                        param_words * sizeof(unsigned int), GFP_KERNEL);
+	                                if (!template_block) {
+	                                        pr_warn("  Unable to allocate params for G3D override level %u\n",
+	                                                insert_idx);
+	                                        continue;
+	                                }
+
+	                                if (insert_idx < current_lv) {
+	                                        size_t param_count = (current_lv - insert_idx) * param_words;
+
+	                                        memmove(&new_param_u32[dst_offset + param_words],
+	                                                &new_param_u32[dst_offset],
+	                                                param_count * sizeof(unsigned int));
+	                                }
+
+	                                memcpy(&new_param_u32[dst_offset], template_block,
+	                                        param_words * sizeof(unsigned int));
+
+	                                for (k = 0; k < param_words && k < vclk->num_list; k++) {
+	                                        unsigned int clk_id = vclk->list[k];
+
+	                                        if (IS_PLL(clk_id))
+	                                                new_param_u32[dst_offset + k] = entry->rate_khz;
+	                                }
+	                        }
+
+			if (insert_idx < current_lv)
+				memmove(&new->table[insert_idx + 1], &new->table[insert_idx],
+					(current_lv - insert_idx) * sizeof(struct rate_volt));
+
+			new->table[insert_idx].rate = entry->rate_khz;
+			new->table[insert_idx].volt = entry->volt_uv;
+			if (insert_idx < vclk->num_rates)
+				vclk->lut[insert_idx].rate = entry->rate_khz;
+			current_lv++;
+
+			if (template_block) {
+				size_t dst_offset = insert_idx * param_words;
+
+				for (k = 0; k < param_words && k < vclk->num_list; k++) {
+					if (!IS_PLL(vclk->list[k]))
+						continue;
+					/* ensure vclk LUT matches the fvmap copy if available */
+					if (insert_idx < vclk->num_rates &&
+					    vclk->lut[insert_idx].params)
+						vclk->lut[insert_idx].params[k] =
+							new_param_u32[dst_offset + k];
+				}
+
+				kfree(template_block);
+			}
+
+			pr_info("  Added G3D override level %u : rate %lu KHz volt %u uV\n",
+				insert_idx, entry->rate_khz, entry->volt_uv);
+			}
+
+			if (current_lv != original_lv) {
+				fvmap_header[i].num_of_lv = current_lv;
+				if (current_lv > vclk->num_rates)
+					vclk->num_rates = current_lv;
 			}
 		}
 	}
