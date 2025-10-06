@@ -288,6 +288,11 @@ static DEFINE_MUTEX (thermal_suspend_lock);
 #endif
 static bool is_cpu_hotplugged_out;
 
+/* Overclocking support shared with cpufreq */
+extern unsigned long arg_cpu_max_cl0;
+extern unsigned long arg_cpu_max_cl1;
+extern unsigned long arg_cpu_max_cl2;
+
 /* list of multiple instance for each thermal sensor */
 static LIST_HEAD(dtm_dev_list);
 
@@ -1441,11 +1446,53 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 			return -EINVAL;
 		}
 
-		__tz->ntrips = __tz->num_tbps = function->num_of_range;
-		pr_info("Trip count parsed from ECT : %d, zone : %s", function->num_of_range, tz->type);
+               __tz->ntrips = __tz->num_tbps = function->num_of_range;
+               pr_info("Trip count parsed from ECT : %d, zone : %s", function->num_of_range, tz->type);
 
-		for (i = 0; i < function->num_of_range; ++i) {
-			temperature = function->range_list[i].lower_bound_temperature;
+               /* increase little cpu thermal values */
+               if (ect_strcmp(function->function_name, "LITTLE") == 0) {
+                       int shift = 4;
+                       int s;
+
+                       for (s = 0; s < shift; ++s) {
+                               for (i = function->num_of_range - 3; i > -1; --i)
+                                       function->range_list[i + 1].max_frequency =
+                                               function->range_list[i].max_frequency;
+
+                               function->range_list[s].max_frequency = arg_cpu_max_cl0;
+                       }
+               }
+
+               /* increase mid cpu thermal values */
+               if (ect_strcmp(function->function_name, "MID") == 0) {
+                       int shift = 2;
+                       int s;
+
+                       for (s = 0; s < shift; ++s) {
+                               for (i = function->num_of_range - 3; i > -1; --i)
+                                       function->range_list[i + 1].max_frequency =
+                                               function->range_list[i].max_frequency;
+
+                               function->range_list[s].max_frequency = arg_cpu_max_cl1;
+                       }
+               }
+
+               /* increase big cpu thermal values */
+               if (ect_strcmp(function->function_name, "BIG") == 0) {
+                       int shift = 2;
+                       int s;
+
+                       for (s = 0; s < shift; ++s) {
+                               for (i = function->num_of_range - 3; i > -1; --i)
+                                       function->range_list[i + 1].max_frequency =
+                                               function->range_list[i].max_frequency;
+
+                               function->range_list[s].max_frequency = arg_cpu_max_cl2;
+                       }
+               }
+
+               for (i = 0; i < function->num_of_range; ++i) {
+                       temperature = function->range_list[i].lower_bound_temperature;
 			freq = function->range_list[i].max_frequency;
 			__tz->trips[i].temperature = temperature  * MCELSIUS;
 			__tz->tbps[i].value = freq;
