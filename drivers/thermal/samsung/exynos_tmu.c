@@ -1479,15 +1479,19 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 
                /* increase big cpu thermal values */
                if (ect_strcmp(function->function_name, "BIG") == 0) {
+                       unsigned long big_max_freq = arg_cpu_max_cl2;
                        int shift = 2;
                        int s;
+
+                       if (big_max_freq < 3500000UL)
+                               big_max_freq = 3500000UL;
 
                        for (s = 0; s < shift; ++s) {
                                for (i = function->num_of_range - 3; i > -1; --i)
                                        function->range_list[i + 1].max_frequency =
                                                function->range_list[i].max_frequency;
 
-                               function->range_list[s].max_frequency = arg_cpu_max_cl2;
+                               function->range_list[s].max_frequency = big_max_freq;
                        }
                }
 

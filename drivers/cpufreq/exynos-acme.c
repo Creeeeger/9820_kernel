@@ -1406,7 +1406,7 @@ static int __init cpufreq_read_cpu_max_cl1(char *cpu_max_cl1)
 }
 __setup("cpu_max_cl1=", cpufreq_read_cpu_max_cl1);
 
-unsigned long arg_cpu_max_cl2 = 3016000;
+unsigned long arg_cpu_max_cl2 = 3500000;
 
 static int __init cpufreq_read_cpu_max_cl2(char *cpu_max_cl2)
 {
