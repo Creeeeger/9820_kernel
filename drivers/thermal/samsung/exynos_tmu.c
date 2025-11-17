@@ -1483,9 +1483,6 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
                        int shift = 2;
                        int s;
 
-                       if (big_max_freq < 3500000UL)
-                               big_max_freq = 3500000UL;
-
                        for (s = 0; s < shift; ++s) {
                                for (i = function->num_of_range - 3; i > -1; --i)
                                        function->range_list[i + 1].max_frequency =
