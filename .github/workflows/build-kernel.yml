@@ -11,6 +11,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - beyond0lte
+          - beyond1lte
+          - beyond2lte
+          - beyondx
+          - d1
+          - d1xks
+          - d2s
+          - d2x
+          - d2xks
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,12 +56,12 @@ jobs:
       - name: Build kernel
         run: |
           chmod +x build.sh
-          ./build.sh --model beyondx --ksu y
+          ./build.sh --model ${{ matrix.model }} --ksu y
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-build
+          name: kernel-build-${{ matrix.model }}
           path: |
             build/out/**/zip/*.zip
             build/out/**/boot.img

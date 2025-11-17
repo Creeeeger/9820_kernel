@@ -251,7 +251,10 @@ if [ -z "$RECOVERY" ]; then
     else
         NAME="$version"_"$MODEL"_UNOFFICIAL_"$DATE".zip
     fi
-    zip -r ../"$NAME" .
+
+    # Store the generated archive inside the zip directory so CI artifact
+    # uploads can glob the file reliably.
+    zip -r "$NAME" .
     popd > /dev/null
 fi
 
