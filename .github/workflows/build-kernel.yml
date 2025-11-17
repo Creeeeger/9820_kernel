@@ -64,5 +64,4 @@ jobs:
           name: kernel-build-${{ matrix.model }}
           path: |
             build/out/**/zip/*.zip
-            build/out/**/boot.img
           if-no-files-found: warn
