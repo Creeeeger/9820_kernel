@@ -50,6 +50,24 @@ CORES=`cat /proc/cpuinfo | grep -c processor`
 CLANG_DIR=$PWD/toolchain/neutron_18
 PATH=$CLANG_DIR/bin:$PATH
 
+# Enable ccache if available
+if command -v ccache >/dev/null 2>&1; then
+    echo "-----------------------------------------------"
+    echo "Using ccache for compilation"
+    echo "-----------------------------------------------"
+
+    # Standard-CCACHE_DIR, falls nicht von außen gesetzt (z. B. durch GitHub Actions)
+    export CCACHE_DIR="${CCACHE_DIR:-$PWD/.ccache}"
+    export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
+    export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-5}"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
+
+    # ccache vor clang hängen
+    export CC="ccache $CLANG_DIR/bin/clang-18"
+    export HOSTCC="$CC"
+    USE_CCACHE=1
+fi
+
 # Check if toolchain exists
 if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     echo "-----------------------------------------------"

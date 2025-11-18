@@ -21,6 +21,13 @@ jobs:
          # - d2s
          # - d2x
          # - d2xks
+         
+    env:
+      CCACHE_DIR: ~/.ccache
+      CCACHE_COMPRESS: "1"
+      CCACHE_COMPRESSLEVEL: "5"
+      CCACHE_MAXSIZE: "10G"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,6 +56,30 @@ jobs:
             wget \
             zip \
             zstd
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.model }}-v1-${{ hashFiles('**/*.c', '**/*.h', 'arch/**', 'drivers/**', 'kernel/**') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.model }}-v1-
+
+      - name: Restore toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain/neutron_18
+          key: neutron-toolchain-05012024
+
+      - name: Restore kernel build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            build/out
+          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-v1-${{ hashFiles('build.sh', 'Makefile', 'arch/**', 'init/**') }}
+          restore-keys: |
+            kernel-out-${{ runner.os }}-${{ matrix.model }}-v1-
 
       - name: Build kernel
         run: |
