@@ -47,12 +47,9 @@ static const struct rate_volt g3d_manual_ratevolt[] = {
     G3D_MANUAL_RATE(1222, 900000),
 };
 
-static void fvmap_apply_gpu_manual_table(struct fvmap_header *header,
-                                         struct rate_volt_header *rate_table,
-                                         struct vclk *vclk) {
-    size_t manual_count = ARRAY_SIZE(g3d_manual_ratevolt);
+static size_t
+fvmap_ratevolt_capacity(const volatile struct fvmap_header *header) {
     size_t capacity = header->num_of_lv;
-    size_t idx;
 
     if (header->o_tables > header->o_ratevolt) {
         size_t ratevolt_capacity =
@@ -61,6 +58,40 @@ static void fvmap_apply_gpu_manual_table(struct fvmap_header *header,
         if (ratevolt_capacity && ratevolt_capacity < capacity)
             capacity = ratevolt_capacity;
     }
+
+    return capacity;
+}
+
+static size_t
+fvmap_calculate_initial_usage(const volatile struct fvmap_header *header,
+                              int num_of_vclks) {
+    size_t max_offset = 0;
+    int idx;
+
+    for (idx = 0; idx < num_of_vclks; idx++) {
+        size_t ratevolt_bytes =
+            header[idx].num_of_lv * sizeof(struct rate_volt);
+        size_t table_bytes = header[idx].num_of_lv * header[idx].num_of_members;
+        size_t member_bytes =
+            header[idx].num_of_members * sizeof(unsigned short);
+
+        max_offset =
+            max_t(size_t, max_offset, header[idx].o_ratevolt + ratevolt_bytes);
+        max_offset =
+            max_t(size_t, max_offset, header[idx].o_tables + table_bytes);
+        max_offset =
+            max_t(size_t, max_offset, header[idx].o_members + member_bytes);
+    }
+
+    return ALIGN(max_offset, sizeof(u32));
+}
+
+static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
+                                         struct rate_volt_header *rate_table,
+                                         struct vclk *vclk) {
+    size_t manual_count = ARRAY_SIZE(g3d_manual_ratevolt);
+    size_t capacity = fvmap_ratevolt_capacity(header);
+    size_t idx;
 
     if (capacity < manual_count) {
         pr_warn("  G3D manual table truncated to %zu entries (capacity %zu)\n",
@@ -430,7 +461,8 @@ static const struct attribute_group percent_margin_group = {
 
 static void fvmap_copy_from_sram(void __iomem *map_base,
                                  void __iomem *sram_base) {
-    volatile struct fvmap_header *fvmap_header, *header;
+    volatile struct fvmap_header *fvmap_header;
+    const volatile struct fvmap_header *header;
     struct rate_volt_header *old, *new;
     struct dvfs_table *old_param, *new_param;
     struct clocks *clks;
@@ -438,13 +470,19 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
     struct vclk *vclk;
     unsigned int member_addr;
     unsigned int blk_idx, param_idx;
+    unsigned int fw_lv;
     int size, margin;
     int i, j, k;
+    size_t next_free_offset;
 
     fvmap_header = map_base;
     header = sram_base;
 
     size = cmucal_get_list_size(ACPM_VCLK_TYPE);
+    next_free_offset = fvmap_calculate_initial_usage(header, size);
+    if (next_free_offset > FVMAP_SIZE)
+        pr_warn("FVMAP contents exceed reserved size (%zu > %lu)\n",
+                next_free_offset, FVMAP_SIZE);
 
     for (i = 0; i < size; i++) {
         /* load fvmap info */
@@ -471,24 +509,40 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             continue;
 
         pr_info("fvmap_header[%d]: o_tables=%u (0x%x), o_ratevolt=%u (0x%x)\n",
-                i,
-                (unsigned int)fvmap_header[i].o_tables,
+                i, (unsigned int)fvmap_header[i].o_tables,
                 (unsigned int)fvmap_header[i].o_tables,
                 (unsigned int)fvmap_header[i].o_ratevolt,
                 (unsigned int)fvmap_header[i].o_ratevolt);
-        
+
+        fw_lv = header[i].num_of_lv;
+
         if (!strcmp(vclk->name, "dvfs_g3d")) {
-            size_t fw_lv = fvmap_header[i].num_of_lv;
             size_t manual_lv = ARRAY_SIZE(g3d_manual_ratevolt);
-            size_t capacity = fw_lv;
+            size_t capacity = fvmap_ratevolt_capacity(&header[i]);
 
-            if (fvmap_header[i].o_tables > fvmap_header[i].o_ratevolt) {
-                size_t ratevolt_capacity =
-                    (fvmap_header[i].o_tables - fvmap_header[i].o_ratevolt) /
-                    sizeof(struct rate_volt);
+            if (manual_lv > capacity) {
+                size_t ratevolt_bytes = manual_lv * sizeof(struct rate_volt);
+                size_t table_bytes = manual_lv * fvmap_header[i].num_of_members;
+                size_t new_ratevolt_offset =
+                    ALIGN(next_free_offset, sizeof(struct rate_volt));
+                size_t new_tables_offset =
+                    ALIGN(new_ratevolt_offset + ratevolt_bytes, sizeof(u32));
+                size_t new_end = new_tables_offset + table_bytes;
 
-                if (ratevolt_capacity && ratevolt_capacity < capacity)
-                    capacity = ratevolt_capacity;
+                if (new_end > FVMAP_SIZE) {
+                    pr_err("  G3D: unable to extend manual table, "
+                           "need %zu bytes, limit %lu – truncating\n",
+                           new_end, FVMAP_SIZE);
+                    manual_lv = capacity;
+                } else {
+                    pr_info("  G3D: relocating rate/volt tables to 0x%zx "
+                            "to fit %zu entries\n",
+                            new_ratevolt_offset, manual_lv);
+                    fvmap_header[i].o_ratevolt = new_ratevolt_offset;
+                    fvmap_header[i].o_tables = new_tables_offset;
+                    next_free_offset = new_end;
+                    capacity = manual_lv;
+                }
             }
 
             if (manual_lv > capacity) {
@@ -499,7 +553,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             }
 
             pr_info("  G3D: using %zu levels from manual table "
-                    "(FW advertised %zu)\n",
+                    "(FW advertised %u)\n",
                     manual_lv, fw_lv);
 
             fvmap_header[i].num_of_lv = manual_lv;
@@ -516,10 +570,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             pr_info("  Using manual G3D rate/volt table\n");
         }
 
-        old = sram_base + fvmap_header[i].o_ratevolt;
+        old = sram_base + header[i].o_ratevolt;
         new = map_base + fvmap_header[i].o_ratevolt;
 
-        check_percent_margin(old, fvmap_header[i].num_of_lv);
+        check_percent_margin(old, fw_lv);
 
         margin = init_margin_table[vclk->margin_id];
         if (margin) {
@@ -557,7 +611,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                 pr_info("  DVFS CMU addr:0x%x\n", member_addr);
         }
 
-        for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
+        for (j = 0; j < fw_lv; j++) {
             new->table[j].rate = old->table[j].rate;
             new->table[j].volt = old->table[j].volt;
             pr_info("  lv : [%7d], volt = %d uV (%d %%) \n", new->table[j].rate,
@@ -573,10 +627,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                     new->table[j].volt, volt_offset_percent);
         }
 
-        old_param = sram_base + fvmap_header[i].o_tables;
+        old_param = sram_base + header[i].o_tables;
         new_param = map_base + fvmap_header[i].o_tables;
 
-        for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
+        for (j = 0; j < fw_lv; j++) {
             for (k = 0; k < fvmap_header[i].num_of_members; k++) {
                 param_idx = fvmap_header[i].num_of_members * j + k;
 
@@ -589,27 +643,41 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                 }
             }
         }
+
+        if (!strcmp(vclk->name, "dvfs_g3d")) {
+            size_t manual_lv = fvmap_header[i].num_of_lv;
+
+            if (manual_lv > fw_lv && fw_lv) {
+                size_t stride = fvmap_header[i].num_of_members;
+
+                for (j = fw_lv; j < manual_lv; j++) {
+                    memcpy(&new_param->val[stride * j],
+                           &new_param->val[stride * (fw_lv - 1)], stride);
+                }
+            }
+        }
     }
+}
 
-    int fvmap_init(void __iomem *sram_base) {
-        void __iomem *map_base;
-        struct kobject *kobj;
+int fvmap_init(void __iomem *sram_base) {
+    void __iomem *map_base;
+    struct kobject *kobj;
 
-        map_base = kzalloc(FVMAP_SIZE, GFP_KERNEL);
+    map_base = kzalloc(FVMAP_SIZE, GFP_KERNEL);
 
-        fvmap_base = map_base;
-        sram_fvmap_base = sram_base;
+    fvmap_base = map_base;
+    sram_fvmap_base = sram_base;
 
-        pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
-        fvmap_copy_from_sram(map_base, sram_base);
+    pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
+    fvmap_copy_from_sram(map_base, sram_base);
 
-        /* percent margin for each doamin at runtime */
-        kobj = kobject_create_and_add("percent_margin", power_kobj);
-        if (!kobj)
-            pr_err("Fail to create percent_margin kboject\n");
+    /* percent margin for each doamin at runtime */
+    kobj = kobject_create_and_add("percent_margin", power_kobj);
+    if (!kobj)
+        pr_err("Fail to create percent_margin kboject\n");
 
-        if (sysfs_create_group(kobj, &percent_margin_group))
-            pr_err("Fail to create percent_margin group\n");
+    if (sysfs_create_group(kobj, &percent_margin_group))
+        pr_err("Fail to create percent_margin group\n");
 
-        return 0;
-    }
+    return 0;
+}
