@@ -12,15 +12,15 @@ jobs:
       fail-fast: false
       matrix:
         model:
-          - beyond0lte
-          - beyond1lte
-          - beyond2lte
+         # - beyond0lte
+         # - beyond1lte
+         # - beyond2lte
           - beyondx
-          - d1
-          - d1xks
-          - d2s
-          - d2x
-          - d2xks
+         # - d1
+         # - d1xks
+         # - d2s
+         # - d2x
+         # - d2xks
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -469,6 +469,42 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
         if (vclk == NULL)
             continue;
+
+        pr_info("fvmap_header[%d]: o_tables=%u (0x%x), o_ratevolt=%u (0x%x)\n",
+                i,
+                (unsigned int)fvmap_header[i].o_tables,
+                (unsigned int)fvmap_header[i].o_tables,
+                (unsigned int)fvmap_header[i].o_ratevolt,
+                (unsigned int)fvmap_header[i].o_ratevolt);
+        
+        if (!strcmp(vclk->name, "dvfs_g3d")) {
+            size_t fw_lv = fvmap_header[i].num_of_lv;
+            size_t manual_lv = ARRAY_SIZE(g3d_manual_ratevolt);
+            size_t capacity = fw_lv;
+
+            if (fvmap_header[i].o_tables > fvmap_header[i].o_ratevolt) {
+                size_t ratevolt_capacity =
+                    (fvmap_header[i].o_tables - fvmap_header[i].o_ratevolt) /
+                    sizeof(struct rate_volt);
+
+                if (ratevolt_capacity && ratevolt_capacity < capacity)
+                    capacity = ratevolt_capacity;
+            }
+
+            if (manual_lv > capacity) {
+                pr_warn("  G3D: manual table has %zu entries, "
+                        "FW/capacity only %zu – truncating!\n",
+                        manual_lv, capacity);
+                manual_lv = capacity;
+            }
+
+            pr_info("  G3D: using %zu levels from manual table "
+                    "(FW advertised %zu)\n",
+                    manual_lv, fw_lv);
+
+            fvmap_header[i].num_of_lv = manual_lv;
+        }
+
         pr_info("dvfs_type : %s - id : %x\n", vclk->name,
                 fvmap_header[i].dvfs_type);
         pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
