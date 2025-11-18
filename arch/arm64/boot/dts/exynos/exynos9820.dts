@@ -4898,15 +4898,15 @@
 				ldsum_thr = <1200>;
 				enabled = <1>;
 			};
-			emc_mode_2 {
-				mode_name = "SINGLE";
-				cpus = "0-3,6";
-				boost_cpus = "6";
-				cal-id = <ACPM_DVFS_CPUCL2>;
-                               max_freq = <3016000>;
-				change_latency = <30>;
-				enabled = <1>;
-			};
+                        emc_mode_2 {
+                                mode_name = "SINGLE";
+                                cpus = "0-3,6";
+                                boost_cpus = "6";
+                                cal-id = <ACPM_DVFS_CPUCL2>;
+                               max_freq = <3500000>;
+                                change_latency = <30>;
+                                enabled = <1>;
+                        };
 		};
 
 		emc_domains {
@@ -5101,7 +5101,8 @@
 				ctrl-type = <PM_QOS_MIN_LIMIT>;
 				execution-mode = <AARCH64_MODE>;
 					/* cht  pmt  ank */
-                               table = < 3016000 2400000 1950000
+                               table = < 3500000 2400000 2400000
+                                        3016000 2400000 1950000
                                         2912000 2400000 1950000
                                         2808000 2400000 1950000
                                         2730000 2400000 1950000
@@ -5132,7 +5133,8 @@
 				ctrl-type = <PM_QOS_MAX_LIMIT>;
 				execution-mode = <AARCH32_MODE>;
 					/* cht  pmt  ank */
-                               table = < 3016000 2400000 0
+                               table = < 3500000 2400000 0
+                                        3016000 2400000 0
                                         2912000 2400000 0
                                         2808000 2400000 0
                                         2730000 2400000 0
@@ -5163,7 +5165,8 @@
 				ctrl-type = <PM_QOS_MAX_LIMIT>;
 				execution-mode = <AARCH64_MODE>;
 					/* cht  pmt  ank */
-                               table = < 3016000 2400000 0
+                               table = < 3500000 2400000 0
+                                        3016000 2400000 0
                                         2912000 2400000 0
                                         2808000 2400000 0
                                         2730000 2400000 0
@@ -5199,7 +5202,7 @@
 			cal-id = <ACPM_DVFS_CPUCL0>;
 			dm-type = <DM_CPU_CL0>;
 
-			max-freq = <1950000>;
+                        max-freq = <2400000>;
 			min-freq = <442000>;
 
 			/* PM QoS Class ID*/
@@ -5213,8 +5216,9 @@
 					const-type = <CONSTRAINT_MIN>;
 					dm-type = <DM_MIF>;
 					/*  cpu     mif  */
-					table = < 1950000  0
-						1846000  0
+                                table = < 2400000  0
+                                        1950000  0
+                                        1846000  0
 						1742000  0
 						1586000  0
 						1456000  0
@@ -5303,7 +5307,7 @@
 			dm-type = <DM_CPU_CL2>;
 			need-awake;
 
-                      max-freq = <3016000>;
+                      max-freq = <3500000>;
 			min-freq = <520000>;
 
 			/* PM QoS Class ID*/
@@ -5319,7 +5323,8 @@
 					const-type = <CONSTRAINT_MIN>;
 					dm-type = <DM_MIF>;
 					/*  cpu     mif  */
-                               table = < 3016000  2093000
+                               table = < 3500000  2093000
+                                        3016000  2093000
                                         2912000  2093000
                                         2808000  2093000
                                         2730000  2093000
