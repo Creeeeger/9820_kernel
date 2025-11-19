@@ -48,28 +48,10 @@ CORES=`cat /proc/cpuinfo | grep -c processor`
 
 # Define toolchain variables
 CLANG_DIR=$PWD/toolchain/neutron_18
-PATH=$CLANG_DIR/bin:$PATH
-
-# Enable ccache if available
-if command -v ccache >/dev/null 2>&1; then
-    echo "-----------------------------------------------"
-    echo "Using ccache for compilation"
-    echo "-----------------------------------------------"
-
-    # Standard-CCACHE_DIR, falls nicht von außen gesetzt (z. B. durch GitHub Actions)
-    export CCACHE_DIR="${CCACHE_DIR:-$PWD/.ccache}"
-    export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
-    export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-5}"
-    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
-
-    # ccache vor clang hängen
-    export CC="ccache $CLANG_DIR/bin/clang-18"
-    export HOSTCC="$CC"
-    USE_CCACHE=1
-fi
+CLANG_BIN="$CLANG_DIR/bin"
 
 # Check if toolchain exists
-if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
+if [ ! -f "$CLANG_BIN/clang-18" ]; then
     echo "-----------------------------------------------"
     echo "Toolchain not found! Downloading..."
     echo "-----------------------------------------------"
@@ -85,6 +67,38 @@ if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     echo "Cleaning up..."
     popd > /dev/null
 fi
+
+PATH=$CLANG_BIN:$PATH
+
+# Configure compiler variables after the toolchain is guaranteed to exist
+if command -v ccache >/dev/null 2>&1; then
+    echo "-----------------------------------------------"
+    echo "Using ccache for compilation"
+    echo "-----------------------------------------------"
+
+    # Standard-CCACHE_DIR, falls nicht von außen gesetzt (z. B. durch GitHub Actions)
+    export CCACHE_DIR="${CCACHE_DIR:-$PWD/.ccache}"
+    export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
+    export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-5}"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
+
+    # ccache vor clang hängen
+    export CC="ccache $CLANG_BIN/clang-18"
+    USE_CCACHE=1
+else
+    export CC="$CLANG_BIN/clang-18"
+fi
+
+export HOSTCC="$CLANG_BIN/clang-18"
+export HOSTCXX="$CLANG_BIN/clang++-18"
+export HOSTLD="$CLANG_BIN/ld.lld"
+export HOSTAR="$CLANG_BIN/llvm-ar"
+export LD="$CLANG_BIN/ld.lld"
+export AR="$CLANG_BIN/llvm-ar"
+export NM="$CLANG_BIN/llvm-nm"
+export OBJCOPY="$CLANG_BIN/llvm-objcopy"
+export OBJDUMP="$CLANG_BIN/llvm-objdump"
+export STRIP="$CLANG_BIN/llvm-strip"
 
 MAKE_ARGS="
 LLVM=1 \
