@@ -5196,171 +5196,179 @@
 	};
 
 	cpufreq {
-		cpufreq_domain0: domain@0 {
-			device_type = "cpufreq-domain";
-			sibling-cpus = "0-3";
-			cal-id = <ACPM_DVFS_CPUCL0>;
-			dm-type = <DM_CPU_CL0>;
+                cpufreq_domain0: domain@0 {
+                        device_type = "cpufreq-domain";
+                        sibling-cpus = "0-3";
+                        cal-id = <ACPM_DVFS_CPUCL0>;
+                        dm-type = <DM_CPU_CL0>;
 
-                        max-freq = <2400000>;
-			min-freq = <442000>;
+                        max-freq = <2600000>;
+                        min-freq = <442000>;
 
-			/* PM QoS Class ID*/
-			pm_qos-min-class = <3>;
-			pm_qos-max-class = <4>;
+                        /* PM QoS Class ID*/
+                        pm_qos-min-class = <3>;
+                        pm_qos-max-class = <4>;
 
-			#cooling-cells = <2>; /* min followed by max */
+                        #cooling-cells = <2>; /* min followed by max */
 
-			dm-constraints {
-				mif-perf {
-					const-type = <CONSTRAINT_MIN>;
-					dm-type = <DM_MIF>;
-					/*  cpu     mif  */
-                                table = < 2400000  0
-                                        1950000  0
-                                        1846000  0
-						1742000  0
-						1586000  0
-						1456000  0
-						1300000  0
-						1157000  0
-						1053000  0
-						949000  0
-						806000  0
-						650000  0
-						546000  0
-						442000       0
-						>;
-				};
-			};
-		};
+                        dm-constraints {
+                                mif-perf {
+                                        const-type = <CONSTRAINT_MIN>;
+                                        dm-type = <DM_MIF>;
+                                        /*  cpu     mif  */
+                                        table = < 2600000  0
+                                                2400000  0
+                                                1950000  0
+                                                1846000  0
+                                                1742000  0
+                                                1586000  0
+                                                1456000  0
+                                                1300000  0
+                                                1157000  0
+                                                1053000  0
+                                                949000  0
+                                                806000  0
+                                                650000  0
+                                                546000  0
+                                                442000       0
+                                                >;
+                                };
+                        };
+                };
 
-		cpufreq_domain1: domain@1 {
-			device_type = "cpufreq-domain";
-			sibling-cpus = "4-5";
-			cal-id = <ACPM_DVFS_CPUCL1>;
-			dm-type = <DM_CPU_CL1>;
+                cpufreq_domain1: domain@1 {
+                        device_type = "cpufreq-domain";
+                        sibling-cpus = "4-5";
+                        cal-id = <ACPM_DVFS_CPUCL1>;
+                        dm-type = <DM_CPU_CL1>;
 
-			max-freq = <2504000>;
-			min-freq = <377000>;
+                        max-freq = <2700000>;
+                        min-freq = <377000>;
 
-			/* PM QoS Class ID*/
-			pm_qos-min-class = <5>;
-			pm_qos-max-class = <6>;
+                        /* PM QoS Class ID*/
+                        pm_qos-min-class = <5>;
+                        pm_qos-max-class = <6>;
 
-			#cooling-cells = <2>; /* min followed by max */
+                        #cooling-cells = <2>; /* min followed by max */
 
-			dm-constraints {
-				mif-perf {
-					const-type = <CONSTRAINT_MIN>;
-					dm-type = <DM_MIF>;
-					/*  cpu     mif  */
-					table = < 2400000  2093000
-						2314000  2093000
-						2210000      0
-						2106000      0
-						2002000      0
-						1898000      0
-						1794000      0
-						1690000      0
-						1586000      0
-						1508000      0
-						1404000      0
-						1222000      0
-						1066000      0
-						962000       0
-						845000       0
-						754000       0
-						650000       0
-						>;
-				};
-				ank-perf {
-					const-type = <CONSTRAINT_MIN>;
-					dm-type = <DM_CPU_CL0>;
-					/*  pmt     ank  */
-					table = < 2400000  1300000
-						2314000  1300000
-						2210000  1157000
-						2106000  1157000
-						2002000  1053000
-						1898000  1053000
-						1794000  949000
-						1690000  949000
-						1586000  806000
-						1508000  806000
-						1404000  806000
-						1222000  650000
-						1066000  650000
-						962000        0
-						845000        0
-						754000        0
-						650000        0
-						>;
-				};
-			};
-		};
+                        dm-constraints {
+                                mif-perf {
+                                        const-type = <CONSTRAINT_MIN>;
+                                        dm-type = <DM_MIF>;
+                                        /*  cpu     mif  */
+                                        table = < 2700000  2093000
+                                                2600000  2093000
+                                                2504000  2093000
+                                                2400000  2093000
+                                                2314000  2093000
+                                                2210000      0
+                                                2106000      0
+                                                2002000      0
+                                                1898000      0
+                                                1794000      0
+                                                1690000      0
+                                                1586000      0
+                                                1508000      0
+                                                1404000      0
+                                                1222000      0
+                                                1066000      0
+                                                962000       0
+                                                845000       0
+                                                754000       0
+                                                650000       0
+                                                >;
+                                };
+                                ank-perf {
+                                        const-type = <CONSTRAINT_MIN>;
+                                        dm-type = <DM_CPU_CL0>;
+                                        /*  pmt     ank  */
+                                        table = < 2700000  1300000
+                                                2600000  1300000
+                                                2504000  1300000
+                                                2400000  1300000
+                                                2314000  1300000
+                                                2210000  1157000
+                                                2106000  1157000
+                                                2002000  1053000
+                                                1898000  1053000
+                                                1794000  949000
+                                                1690000  949000
+                                                1586000  806000
+                                                1508000  806000
+                                                1404000  806000
+                                                1222000  650000
+                                                1066000  650000
+                                                962000        0
+                                                845000        0
+                                                754000        0
+                                                650000        0
+                                                >;
+                                };
+                        };
+                };
 
-		cpufreq_domain2: domain@2 {
-			device_type = "cpufreq-domain";
-			sibling-cpus = "6-7";
-			cal-id = <ACPM_DVFS_CPUCL2>;
-			dm-type = <DM_CPU_CL2>;
-			need-awake;
+                cpufreq_domain2: domain@2 {
+                        device_type = "cpufreq-domain";
+                        sibling-cpus = "6-7";
+                        cal-id = <ACPM_DVFS_CPUCL2>;
+                        dm-type = <DM_CPU_CL2>;
+                        need-awake;
 
-                      max-freq = <3500000>;
-			min-freq = <520000>;
+                        max-freq = <3700000>;
+                        min-freq = <520000>;
 
-			/* PM QoS Class ID*/
-			pm_qos-min-class = <7>;
-			pm_qos-max-class = <8>;
+                        /* PM QoS Class ID*/
+                        pm_qos-min-class = <7>;
+                        pm_qos-max-class = <8>;
 
-			pm_qos-booting = <2080000>;
+                        pm_qos-booting = <2080000>;
 
-			#cooling-cells = <2>; /* min followed by max */
+                        #cooling-cells = <2>; /* min followed by max */
 
-			dm-constraints {
-				mif-perf {
-					const-type = <CONSTRAINT_MIN>;
-					dm-type = <DM_MIF>;
-					/*  cpu     mif  */
-                               table = < 3500000  2093000
-                                        3016000  2093000
-                                        2912000  2093000
-                                        2808000  2093000
-                                        2730000  2093000
-                                        2600000  2093000
-                                        2530000  2093000
-                                        2470000  2093000
-                                        2340000  2093000
-                                        2236000  2093000
-                                        2080000        0
+                        dm-constraints {
+                                mif-perf {
+                                        const-type = <CONSTRAINT_MIN>;
+                                        dm-type = <DM_MIF>;
+                                        /*  cpu     mif  */
+                                        table = < 3700000  2093000
+                                                3600000  2093000
+                                                3500000  2093000
+                                                3016000  2093000
+                                                2912000  2093000
+                                                2808000  2093000
+                                                2730000  2093000
+                                                2600000  2093000
+                                                2530000  2093000
+                                                2470000  2093000
+                                                2340000  2093000
+                                                2236000  2093000
+                                                2080000        0
                                                 1976000        0
-						1820000        0
-						1664000        0
-						1560000        0
-						1456000        0
-						1378000        0
-						1248000        0
-						1144000        0
-						1040000        0
-						936000       0
-						819000       0
-						728000       0
-						624000       0
-						520000	     0
-						>;
-				};
-				mif-skew {
-					guidance;
-					const-type = <CONSTRAINT_MIN>;
-					dm-type = <DM_MIF>;
-					ect-name = "dvfs_cpucl2";
-				};
-			};
-		};
-	};
-
-	exynos_devfreq {
+                                                1820000        0
+                                                1664000        0
+                                                1560000        0
+                                                1456000        0
+                                                1378000        0
+                                                1248000        0
+                                                1144000        0
+                                                1040000        0
+                                                936000       0
+                                                819000       0
+                                                728000       0
+                                                624000       0
+                                                520000       0
+                                                >;
+                                };
+                                mif-skew {
+                                        guidance;
+                                        const-type = <CONSTRAINT_MIN>;
+                                        dm-type = <DM_MIF>;
+                                        ect-name = "dvfs_cpucl2";
+                                };
+                        };
+                };
+        };
+exynos_devfreq {
 		compatible = "samsung,exynos-devfreq-root";
 		#address-cells = <2>;
 		#size-cells = <1>;
