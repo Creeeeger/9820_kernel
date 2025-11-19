@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ matrix.model }}-v1-${{ hashFiles('**/*.c', '**/*.h', 'arch/**', 'drivers/**', 'kernel/**') }}
+          key: ccache-${{ runner.os }}-${{ matrix.model }}-v1-${{ github.sha }}
           restore-keys: |
             ccache-${{ runner.os }}-${{ matrix.model }}-v1-
 
@@ -71,7 +71,7 @@ jobs:
           path: |
             out
             build/out
-          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-v1-${{ hashFiles('build.sh', 'Makefile', 'arch/**', 'init/**') }}
+          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-v1-${{ github.sha }}
           restore-keys: |
             kernel-out-${{ runner.os }}-${{ matrix.model }}-v1-
 
