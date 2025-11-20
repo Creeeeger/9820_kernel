@@ -10,8 +10,14 @@
 #include <linux/file.h>
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/io.h>
+#include <linux/printk.h>
 
 #define ALIGNMENT_SIZE	 4
+
+#define ECT_PHYS_ADDR   0x95000000
+#define ECT_SIZE        0x3A000
+
 
 #define S5P_VA_ECT (VMALLOC_START + 0xF6000000 + 0x02D00000)
 
@@ -2545,6 +2551,8 @@ int ect_parse_binary_header(void)
 	struct ect_header *ect_header;
 
 	ect_init_map_io();
+    
+    ect_dump_raw_blob();
 
 	address = (void *)ect_address;
 	if (address == NULL)
@@ -2642,4 +2650,32 @@ void ect_init_map_io(void)
 		pr_err("[ECT] : failed to mapping va and pa(%d)\n", ret);
 	}
 	kfree(pages);
+}
+
+
+static void ect_dump_raw_blob(void)
+{
+    void __iomem *base;
+    size_t size = ECT_SIZE;
+    size_t max_dump = ECT_SIZE;  /* ggf. runtersetzen, z.B. 0x1000 zum Testen */
+
+    base = ioremap(ECT_PHYS_ADDR, size);
+    if (!base) {
+        pr_err("[ect-raw] failed to ioremap 0x%x (size 0x%zx)\n",
+               ECT_PHYS_ADDR, size);
+        return;
+    }
+
+    pr_info("[ect-raw] dumping ECT blob at phys=0x%x size=0x%zx\n",
+            ECT_PHYS_ADDR, size);
+
+    /*
+     * WARNUNG:
+     * Das flutet dmesg. Zum Testen max_dump kleiner machen (z.B. 0x400 oder 0x1000).
+     */
+    print_hex_dump(KERN_INFO, "[ect-raw] ",
+                   DUMP_PREFIX_OFFSET, 16, 1,
+                   (void __force const void *)base, max_dump, false);
+
+    iounmap(base);
 }
