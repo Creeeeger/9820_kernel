@@ -34,6 +34,9 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 	config.cmd[1] = (unsigned int)rate;
 	config.cmd[2] = FREQ_REQ;
 	config.cmd[3] = 0;
+    
+    pr_info("[acpm-dvfs] set_rate: rate=%lu cmd0=0x%08x cmd1=0x%08x cmd2=0x%08x\n",
+             rate, cmd[0], cmd[1], cmd[2]);
 
 	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
