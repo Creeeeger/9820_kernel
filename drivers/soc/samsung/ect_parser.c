@@ -35,6 +35,8 @@ static phys_addr_t ect_address;
 static phys_addr_t ect_size;
 
 static struct vm_struct ect_early_vm;
+static void ect_dump_raw_blob(void);
+
 
 /* API for internal */
 
@@ -2652,8 +2654,7 @@ void ect_init_map_io(void)
 	kfree(pages);
 }
 
-
-void ect_dump_raw_blob(void)
+static void ect_dump_raw_blob(void)
 {
     void __iomem *base;
     size_t size = ECT_SIZE;
