@@ -2671,7 +2671,7 @@ void ect_dump_raw_blob(void)
 
     print_hex_dump(KERN_INFO, "[ect-raw] ",
                    DUMP_PREFIX_OFFSET, 16, 1,
-                   (void __force const void *)base, max_dump, false);
+                   (const void __force *)base, max_dump, false);
 
     iounmap(base);
 }
