@@ -2653,11 +2653,11 @@ void ect_init_map_io(void)
 }
 
 
-static void ect_dump_raw_blob(void)
+void ect_dump_raw_blob(void)
 {
     void __iomem *base;
     size_t size = ECT_SIZE;
-    size_t max_dump = ECT_SIZE;  /* ggf. runtersetzen, z.B. 0x1000 zum Testen */
+    size_t max_dump = ECT_SIZE;
 
     base = ioremap(ECT_PHYS_ADDR, size);
     if (!base) {
@@ -2669,10 +2669,6 @@ static void ect_dump_raw_blob(void)
     pr_info("[ect-raw] dumping ECT blob at phys=0x%x size=0x%zx\n",
             ECT_PHYS_ADDR, size);
 
-    /*
-     * WARNUNG:
-     * Das flutet dmesg. Zum Testen max_dump kleiner machen (z.B. 0x400 oder 0x1000).
-     */
     print_hex_dump(KERN_INFO, "[ect-raw] ",
                    DUMP_PREFIX_OFFSET, 16, 1,
                    (void __force const void *)base, max_dump, false);
