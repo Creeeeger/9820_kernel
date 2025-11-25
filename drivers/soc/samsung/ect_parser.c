@@ -2656,19 +2656,21 @@ void ect_init_map_io(void)
 
 static void ect_dump_raw_blob(void)
 {
-    void __iomem *base;
-    size_t size = ECT_SIZE;
-    size_t max_dump = ECT_SIZE;
+	void __iomem *base;
+	phys_addr_t phys = ect_early_vm.phys_addr ?
+			 ect_early_vm.phys_addr : ECT_PHYS_ADDR;
+	size_t size = ect_early_vm.size ? ect_early_vm.size : ECT_SIZE;
+	size_t max_dump = size;
 
-    base = ioremap(ECT_PHYS_ADDR, size);
-    if (!base) {
-        pr_err("[ect-raw] failed to ioremap 0x%x (size 0x%zx)\n",
-               ECT_PHYS_ADDR, size);
-        return;
-    }
+	base = ioremap(phys, size);
+	if (!base) {
+		pr_err("[ect-raw] failed to ioremap 0x%llx (size 0x%zx)\n",
+		       (unsigned long long)phys, size);
+		return;
+	}
 
-    pr_info("[ect-raw] dumping ECT blob at phys=0x%x size=0x%zx\n",
-            ECT_PHYS_ADDR, size);
+	pr_info("[ect-raw] dumping ECT blob at phys=0x%llx size=0x%zx\n",
+	        (unsigned long long)phys, size);
 
     print_hex_dump(KERN_INFO, "[ect-raw] ",
                    DUMP_PREFIX_OFFSET, 16, 1,
