@@ -2672,7 +2672,7 @@ void ect_init_map_io(void)
 
 static void ect_dump_raw_blob(void)
 {
-	void __iomem *base;
+	void *base;
 	phys_addr_t phys;
 	size_t size;
 	size_t max_dump;
@@ -2686,21 +2686,21 @@ static void ect_dump_raw_blob(void)
 	size = ect_early_vm.size;
 	max_dump = size;
 
-	base = ioremap(phys, size);
+	base = memremap(phys, size, MEMREMAP_WB);
 	if (!base) {
-		pr_err("[ect-raw] failed to ioremap 0x%llx (size 0x%zx)\n",
+		pr_err("[ect-raw] failed to remap 0x%llx (size 0x%zx)\n",
 		       (unsigned long long)phys, size);
 		return;
 	}
 
 	pr_info("[ect-raw] dumping ECT blob at phys=0x%llx size=0x%zx\n",
-	        (unsigned long long)phys, size);
+		(unsigned long long)phys, size);
 
-    print_hex_dump(KERN_INFO, "[ect-raw] ",
-                   DUMP_PREFIX_OFFSET, 16, 1,
-                   (const void __force *)base, max_dump, false);
+	print_hex_dump(KERN_INFO, "[ect-raw] ",
+		       DUMP_PREFIX_OFFSET, 16, 1,
+		       base, max_dump, false);
 
-    iounmap(base);
+	memunmap(base);
 }
 
 
