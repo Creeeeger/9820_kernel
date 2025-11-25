@@ -150,6 +150,31 @@ fi
 rm -rf build/out/$MODEL
 mkdir -p build/out/$MODEL/zip/files
 mkdir -p build/out/$MODEL/zip/META-INF/com/google/android
+mkdir -p out
+
+CONFIG_SIGNATURE_FILE="out/.config.signature"
+CONFIG_FILES=(
+    arch/arm64/configs/exynos9820_defconfig
+    "arch/arm64/configs/${MODEL}.config"
+)
+
+if [[ -n "$KSU" ]]; then
+    CONFIG_FILES+=(arch/arm64/configs/ksu.config)
+fi
+
+if [[ -n "$RECOVERY" ]]; then
+    CONFIG_FILES+=(arch/arm64/configs/recovery.config)
+fi
+
+CONFIG_HASH=$(cat "${CONFIG_FILES[@]}" | sha256sum | awk '{print $1}')
+CONFIG_SIGNATURE=$(printf "model=%s\nksu=%s\nrecovery=%s\nhash=%s\n" "$MODEL" "${KSU_OPTION:-n}" "${RECOVERY_OPTION:-n}" "$CONFIG_HASH")
+
+REGENERATE_CONFIG=1
+if [[ -f "$CONFIG_SIGNATURE_FILE" ]]; then
+    if [[ "$(cat "$CONFIG_SIGNATURE_FILE")" == "$CONFIG_SIGNATURE" ]]; then
+        REGENERATE_CONFIG=0
+    fi
+fi
 
 # Build kernel image
 echo "-----------------------------------------------"
@@ -169,9 +194,15 @@ fi
 
 echo "-----------------------------------------------"
 echo "Building kernel using "$KERNEL_DEFCONFIG""
-echo "Generating configuration file..."
-echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
+if [[ $REGENERATE_CONFIG -eq 1 ]]; then
+    echo "Generating configuration file..."
+    echo "-----------------------------------------------"
+    make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
+    echo "$CONFIG_SIGNATURE" > "$CONFIG_SIGNATURE_FILE"
+else
+    echo "Configuration unchanged; skipping defconfig step."
+    echo "-----------------------------------------------"
+fi
 
 echo "Building kernel..."
 echo "-----------------------------------------------"
