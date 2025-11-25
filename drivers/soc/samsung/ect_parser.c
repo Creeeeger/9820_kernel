@@ -36,6 +36,7 @@ static phys_addr_t ect_size;
 
 static struct vm_struct ect_early_vm;
 static void ect_dump_raw_blob(void);
+static void ect_dump_full_memory(void);
 
 
 /* API for internal */
@@ -2555,6 +2556,8 @@ int ect_parse_binary_header(void)
 	ect_init_map_io();
     
     ect_dump_raw_blob();
+    
+    ect_dump_full_memory();
 
 	address = (void *)ect_address;
 	if (address == NULL)
@@ -2574,6 +2577,7 @@ int ect_parse_binary_header(void)
     
     ect_dump_raw_blob();
 
+    ect_dump_full_memory();
 
 	ect_present_test_data(ect_header->version);
 
@@ -2601,6 +2605,8 @@ int ect_parse_binary_header(void)
     
     ect_dump_raw_blob();
 
+    
+    ect_dump_full_memory();
 
 	ect_header_info.block_handle = ect_header;
 
@@ -2695,4 +2701,65 @@ static void ect_dump_raw_blob(void)
                    (const void __force *)base, max_dump, false);
 
     iounmap(base);
+}
+
+
+static void ect_dump_full_memory(void)
+{
+    void __iomem *base;
+    size_t size = ect_size;
+    size_t offset = 0;
+    size_t chunk_size = 256; // Dump 256 bytes per chunk to avoid log overflow
+    u8 *data;
+    int i, j;
+    
+    if (!ect_address) {
+        pr_err("[ECT] : ECT memory not initialized\n");
+        return;
+    }
+
+    base = (void __iomem *)ect_address;
+    if (!base) {
+        pr_err("[ECT] : Failed to access ECT memory\n");
+        return;
+    }
+
+    pr_info("=== ECT FULL MEMORY DUMP (size: 0x%zx) ===\n", size);
+    pr_info("Physical address: 0x%llx, Virtual address: %p\n",
+           (unsigned long long)ect_early_vm.phys_addr, base);
+
+    data = (u8 *)base;
+
+    // Dump in chunks to avoid overwhelming the log buffer
+    while (offset < size) {
+        size_t bytes_remaining = size - offset;
+        size_t current_chunk = (bytes_remaining < chunk_size) ? bytes_remaining : chunk_size;
+        
+        pr_info("[ECT] Offset 0x%04zx:", offset);
+        
+        // Hex dump
+        for (i = 0; i < current_chunk; i++) {
+            if (i % 16 == 0) {
+                pr_cont("\n[ECT] %04zx: ", offset + i);
+            }
+            pr_cont("%02x ", data[offset + i]);
+        }
+        
+        // ASCII dump
+        pr_cont("\n[ECT] ASCII: ");
+        for (i = 0; i < current_chunk; i++) {
+            u8 c = data[offset + i];
+            pr_cont("%c", (c >= 0x20 && c <= 0x7E) ? c : '.');
+        }
+        pr_cont("\n");
+        
+        offset += current_chunk;
+        
+        // Add separator between chunks
+        if (offset < size) {
+            pr_info("[ECT] ---\n");
+        }
+    }
+    
+    pr_info("=== END ECT MEMORY DUMP ===\n");
 }
