@@ -2571,6 +2571,9 @@ int ect_parse_binary_header(void)
 		ret = -EINVAL;
 		goto err_memcmp;
 	}
+    
+    ect_dump_raw_blob();
+
 
 	ect_present_test_data(ect_header->version);
 
@@ -2595,6 +2598,9 @@ int ect_parse_binary_header(void)
 			ect_list[j].block_precedence = i;
 		}
 	}
+    
+    ect_dump_raw_blob();
+
 
 	ect_header_info.block_handle = ect_header;
 
@@ -2638,6 +2644,11 @@ void ect_init_map_io(void)
 	struct page **pages;
 	int ret;
 
+	if (!ect_early_vm.phys_addr || !ect_early_vm.size) {
+		pr_debug("[ECT] : skip mapping because early vm is not initialized\n");
+		return;
+	}
+
 	page_size = ect_early_vm.size / PAGE_SIZE;
 	if (ect_early_vm.size % PAGE_SIZE)
 		page_size++;
@@ -2648,19 +2659,26 @@ void ect_init_map_io(void)
 		pages[i] = page++;
 
 	ret = map_vm_area(&ect_early_vm, PAGE_KERNEL, pages);
-	if (ret) {
+	if (ret)
 		pr_err("[ECT] : failed to mapping va and pa(%d)\n", ret);
-	}
 	kfree(pages);
 }
 
 static void ect_dump_raw_blob(void)
 {
 	void __iomem *base;
-	phys_addr_t phys = ect_early_vm.phys_addr ?
-			 ect_early_vm.phys_addr : ECT_PHYS_ADDR;
-	size_t size = ect_early_vm.size ? ect_early_vm.size : ECT_SIZE;
-	size_t max_dump = size;
+	phys_addr_t phys;
+	size_t size;
+	size_t max_dump;
+
+	if (!ect_early_vm.phys_addr || !ect_early_vm.size) {
+		pr_debug("[ect-raw] skip dump: early vm is not initialized\n");
+		return;
+	}
+
+	phys = ect_early_vm.phys_addr;
+	size = ect_early_vm.size;
+	max_dump = size;
 
 	base = ioremap(phys, size);
 	if (!base) {
