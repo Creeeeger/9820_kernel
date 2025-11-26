@@ -2554,8 +2554,6 @@ int ect_parse_binary_header(void)
 
 	ect_init_map_io();
     
-    ect_dump_raw_blob();
-
 	address = (void *)ect_address;
 	if (address == NULL)
 		return -EINVAL;
@@ -2571,9 +2569,6 @@ int ect_parse_binary_header(void)
 		ret = -EINVAL;
 		goto err_memcmp;
 	}
-    
-    ect_dump_raw_blob();
-
 
 	ect_present_test_data(ect_header->version);
 
@@ -2599,8 +2594,8 @@ int ect_parse_binary_header(void)
 		}
 	}
     
+    //Dump ect Blob
     ect_dump_raw_blob();
-
 
 	ect_header_info.block_handle = ect_header;
 

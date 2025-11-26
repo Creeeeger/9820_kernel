@@ -17,42 +17,6 @@ unsigned int asv_table_ver = 0;
 unsigned int main_rev;
 unsigned int sub_rev;
 
-static void vclk_debug_dump_lut(struct vclk *vclk) {
-    int i, j;
-
-    if (!vclk || !vclk->lut) {
-        pr_info("[vclk-debug] no lut for vclk\n");
-        return;
-    }
-
-    pr_info("[vclk-debug] dump for vclk '%s': num_rates=%d, num_list=%d\n",
-            vclk->name, vclk->num_rates, vclk->num_list);
-
-    for (i = 0; i < vclk->num_rates; i++) {
-        struct vclk_lut *l = &vclk->lut[i];
-
-        pr_info("[vclk-debug]   lut[%02d]: rate=%u\n", i, l->rate);
-
-        if (!l->params) {
-            pr_info("[vclk-debug]      params: (null)\n");
-            continue;
-        }
-
-        pr_info("[vclk-debug]      params:");
-        for (j = 0; j < vclk->num_list; j++) {
-            pr_cont(" %d", l->params[j]);
-        }
-
-        pr_info("[vclk-debug2]   lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
-        for (j = 0; j < vclk->num_list; j++){
-            pr_info("[vclk-debug2]     param[%02d] (clk_id=0x%x) = 0x%x\n", j,
-                    vclk->list[j], vclk->lut[i].params[j]);
-        }
-
-        pr_cont("\n");
-    }
-}
-
 static int vclk_add_level_clone(struct vclk *vclk, unsigned int new_rate,
                                 int template_idx) {
     int i, insert_idx;
@@ -708,9 +672,6 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
             vclk->max_freq, vclk->boot_freq, vclk->resume_freq,
             minmax_table ? "override" : "absent");
 
-    if (!strcmp(vclk->name, "dvfs_cpucl2"))
-        vclk_debug_dump_lut(vclk);
-
     if (!strcmp(vclk->name, "dvfs_g3d")) {
         pr_info("[vclk] dvfs_g3d boot_idx=%d resume_idx=%d table_ver=%u\n",
                 dvfs_domain->boot_level_idx, dvfs_domain->resume_level_idx,
@@ -719,17 +680,6 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
             pr_info("[vclk]   g3d lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
     }
 
-    vclk_debug_dump_lut(vclk);
-
-    /*
-        if (!strcmp(vclk->name, "dvfs_cpucl2")) {
-            int tmpl = vclk->num_rates - 1;
-            unsigned int new_rate = 3200000;
-
-            vclk_add_level_clone(vclk, new_rate, tmpl);
-            vclk_debug_dump_lut(vclk);
-        }
-    */
     return ret;
 
 err_nomem_override:
