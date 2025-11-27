@@ -26,6 +26,8 @@
 
 static struct ect_info ect_list[];
 
+#define G3D_TOP_LEVEL_KHZ 754000
+
 static char ect_signature[] = "PARA";
 
 static struct class *ect_class;
@@ -2590,6 +2592,261 @@ ect_new_timing_param_get_key(void *block, unsigned long long key) {
     return NULL;
 }
 
+static int ect_extend_g3d_dvfs(void)
+{
+    int i, j;
+    void *dvfs_block;
+    struct ect_dvfs_domain *domain;
+    struct ect_dvfs_level *levels;
+    unsigned int *dvfs_value;
+    int num_of_level, num_of_clock;
+
+    dvfs_block = ect_get_block(BLOCK_DVFS);
+    if (!dvfs_block)
+        return -EINVAL;
+
+    domain = ect_dvfs_get_domain(dvfs_block, "dvfs_g3d");
+    if (!domain)
+        return -EINVAL;
+
+    if (domain->num_of_level >= 13)
+        return 0;
+
+    num_of_level = domain->num_of_level;
+    num_of_clock = domain->num_of_clock;
+
+    if (!domain->list_level || !domain->list_dvfs_value || !num_of_clock)
+        return -EINVAL;
+
+    levels = kzalloc(sizeof(*levels) * (num_of_level + 1), GFP_KERNEL);
+    if (!levels)
+        return -ENOMEM;
+
+    dvfs_value = kzalloc(sizeof(*dvfs_value) * (num_of_level + 1) * num_of_clock,
+                         GFP_KERNEL);
+    if (!dvfs_value) {
+        kfree(levels);
+        return -ENOMEM;
+    }
+
+    levels[0].level = G3D_TOP_LEVEL_KHZ;
+    levels[0].level_en = domain->list_level[0].level_en;
+    memcpy(&levels[1], domain->list_level, sizeof(*levels) * num_of_level);
+
+    for (j = 0; j < num_of_clock; ++j)
+        dvfs_value[j] = 0;
+
+    for (i = 0; i < num_of_level; ++i) {
+        for (j = 0; j < num_of_clock; ++j)
+            dvfs_value[(i + 1) * num_of_clock + j] =
+                domain->list_dvfs_value[i * num_of_clock + j];
+    }
+
+    domain->list_level = levels;
+    domain->list_dvfs_value = dvfs_value;
+    domain->num_of_level = num_of_level + 1;
+
+    return 0;
+}
+
+static int ect_extend_g3d_asv(void)
+{
+    int i, j, k;
+    void *asv_block;
+    struct ect_voltage_domain *domain;
+    unsigned int *level_list;
+    int num_of_level, num_of_group, num_of_table;
+    unsigned int **voltages = NULL;
+    unsigned char **voltage_steps = NULL;
+    int **level_en = NULL;
+    int ret = 0;
+
+    asv_block = ect_get_block(BLOCK_ASV);
+    if (!asv_block)
+        return -EINVAL;
+
+    domain = ect_asv_get_domain(asv_block, "dvfs_g3d");
+    if (!domain)
+        return -EINVAL;
+
+    if (domain->num_of_level >= 13)
+        return 0;
+
+    num_of_level = domain->num_of_level;
+    num_of_group = domain->num_of_group;
+    num_of_table = domain->num_of_table;
+
+    if (!domain->level_list || !num_of_group || !num_of_table)
+        return -EINVAL;
+
+    level_list = kzalloc(sizeof(*level_list) * (num_of_level + 1), GFP_KERNEL);
+    if (!level_list)
+        return -ENOMEM;
+
+    voltages = kcalloc(num_of_table, sizeof(*voltages), GFP_KERNEL);
+    voltage_steps = kcalloc(num_of_table, sizeof(*voltage_steps), GFP_KERNEL);
+    level_en = kcalloc(num_of_table, sizeof(*level_en), GFP_KERNEL);
+    if (!voltages || !voltage_steps || !level_en) {
+        ret = -ENOMEM;
+        goto err_table_pointers;
+    }
+
+    level_list[0] = G3D_TOP_LEVEL_KHZ;
+    memcpy(&level_list[1], domain->level_list, sizeof(*level_list) * num_of_level);
+
+    for (i = 0; i < num_of_table; ++i) {
+        struct ect_voltage_table *table = &domain->table_list[i];
+        size_t table_size = sizeof(int) * (num_of_level + 1);
+        size_t voltage_size = sizeof(unsigned int) *
+                              (num_of_level + 1) * num_of_group;
+        size_t voltage_step_size = sizeof(unsigned char) *
+                                   (num_of_level + 1) * num_of_group;
+
+        if (table->voltages) {
+            voltages[i] = kzalloc(voltage_size, GFP_KERNEL);
+            if (!voltages[i]) {
+                ret = -ENOMEM;
+                goto err_alloc;
+            }
+
+            memcpy(voltages[i], table->voltages, sizeof(unsigned int) * num_of_group);
+            for (j = 0; j < num_of_level; ++j) {
+                for (k = 0; k < num_of_group; ++k)
+                    voltages[i][(j + 1) * num_of_group + k] =
+                        table->voltages[j * num_of_group + k];
+            }
+        }
+
+        if (table->voltages_step) {
+            voltage_steps[i] = kzalloc(voltage_step_size, GFP_KERNEL);
+            if (!voltage_steps[i]) {
+                ret = -ENOMEM;
+                goto err_alloc;
+            }
+
+            memcpy(voltage_steps[i], table->voltages_step,
+                   sizeof(unsigned char) * num_of_group);
+            for (j = 0; j < num_of_level; ++j) {
+                for (k = 0; k < num_of_group; ++k)
+                    voltage_steps[i][(j + 1) * num_of_group + k] =
+                        table->voltages_step[j * num_of_group + k];
+            }
+        }
+
+        if (table->level_en) {
+            level_en[i] = kzalloc(table_size, GFP_KERNEL);
+            if (!level_en[i]) {
+                ret = -ENOMEM;
+                goto err_alloc;
+            }
+
+            level_en[i][0] = table->level_en[0];
+            memcpy(&level_en[i][1], table->level_en, sizeof(int) * num_of_level);
+        }
+    }
+
+    domain->num_of_level = num_of_level + 1;
+    domain->level_list = level_list;
+
+    for (i = 0; i < num_of_table; ++i) {
+        struct ect_voltage_table *table = &domain->table_list[i];
+
+        if (voltages[i])
+            table->voltages = voltages[i];
+        if (voltage_steps[i])
+            table->voltages_step = voltage_steps[i];
+        if (level_en[i])
+            table->level_en = level_en[i];
+    }
+
+    kfree(voltages);
+    kfree(voltage_steps);
+    kfree(level_en);
+
+    return 0;
+
+err_alloc:
+    for (i = 0; i < num_of_table; ++i) {
+        kfree(voltages ? voltages[i] : NULL);
+        kfree(voltage_steps ? voltage_steps[i] : NULL);
+        kfree(level_en ? level_en[i] : NULL);
+    }
+    kfree(level_list);
+
+err_table_pointers:
+    kfree(voltages);
+    kfree(voltage_steps);
+    kfree(level_en);
+    return ret;
+}
+
+static int ect_extend_g3d_margin(void)
+{
+    int i, j;
+    void *margin_block;
+    struct ect_margin_domain *domain;
+    int num_of_level, num_of_group;
+
+    margin_block = ect_get_block(BLOCK_MARGIN);
+    if (!margin_block)
+        return -EINVAL;
+
+    domain = ect_margin_get_domain(margin_block, "G3D_DD_margin");
+    if (!domain)
+        return -EINVAL;
+
+    if (domain->num_of_level >= 13)
+        return 0;
+
+    num_of_level = domain->num_of_level;
+    num_of_group = domain->num_of_group;
+
+    if (!num_of_group)
+        return -EINVAL;
+
+    if (domain->offset_compact) {
+        unsigned char *offset = kzalloc(
+            sizeof(unsigned char) * (num_of_level + 1) * num_of_group, GFP_KERNEL);
+
+        if (!offset)
+            return -ENOMEM;
+
+        memcpy(offset, domain->offset_compact,
+               sizeof(unsigned char) * num_of_group);
+
+        for (i = 0; i < num_of_level; ++i) {
+            for (j = 0; j < num_of_group; ++j)
+                offset[(i + 1) * num_of_group + j] =
+                    domain->offset_compact[i * num_of_group + j];
+        }
+
+        domain->offset_compact = offset;
+    } else if (domain->offset) {
+        unsigned int *offset = kzalloc(
+            sizeof(unsigned int) * (num_of_level + 1) * num_of_group, GFP_KERNEL);
+
+        if (!offset)
+            return -ENOMEM;
+
+        memcpy(offset, domain->offset,
+               sizeof(unsigned int) * num_of_group);
+
+        for (i = 0; i < num_of_level; ++i) {
+            for (j = 0; j < num_of_group; ++j)
+                offset[(i + 1) * num_of_group + j] =
+                    domain->offset[i * num_of_group + j];
+        }
+
+        domain->offset = offset;
+    } else {
+        return -EINVAL;
+    }
+
+    domain->num_of_level = num_of_level + 1;
+
+    return 0;
+}
+
 int ect_parse_binary_header(void) {
     int ret = 0;
     int i, j;
@@ -2641,6 +2898,13 @@ int ect_parse_binary_header(void) {
             ect_list[j].block_precedence = i;
         }
     }
+
+    if (ect_extend_g3d_dvfs())
+        pr_warn("[ECT] : failed to extend dvfs_g3d levels\n");
+    if (ect_extend_g3d_asv())
+        pr_warn("[ECT] : failed to extend asv dvfs_g3d levels\n");
+    if (ect_extend_g3d_margin())
+        pr_warn("[ECT] : failed to extend G3D_DD_margin levels\n");
 
     ect_header_info.block_handle = ect_header;
 
