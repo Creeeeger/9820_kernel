@@ -69,8 +69,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/out
-            ${{ github.workspace }}/toolchain/neutron_18
+            out
+            toolchain/neutron_18
           key: kernel-out-${{ runner.os }}-${{ matrix.model }}-v1
           restore-keys: |
             kernel-out-${{ runner.os }}-${{ matrix.model }}-
@@ -81,6 +81,8 @@ jobs:
           pwd
           ls -la $GITHUB_WORKSPACE/out || true
           ls -la $GITHUB_WORKSPACE/toolchain/neutron_18 || true
+          ls -la out || true
+          ls -la toolchain/neutron_18 || true
           chmod +x build.sh
           ./build.sh --model ${{ matrix.model }} --ksu y
 
