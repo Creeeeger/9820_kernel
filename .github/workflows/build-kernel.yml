@@ -22,17 +22,19 @@ jobs:
          # - d2x
          # - d2xks
          
-    env:
-      CCACHE_DIR: ~/.ccache
-      CCACHE_COMPRESS: "1"
-      CCACHE_COMPRESSLEVEL: "5"
-      CCACHE_MAXSIZE: "10G"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.model }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.model }}-
 
       - name: Install dependencies
         run: |
@@ -57,14 +59,23 @@ jobs:
             zip \
             zstd
 
+      - name: Setup ccache environment
+        run: |
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESS=1" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESSLEVEL=5" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=10G" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}" >> $GITHUB_ENV
+          echo "CCACHE_CPP2=yes" >> $GITHUB_ENV
+
       - name: Restore kernel build output
         uses: actions/cache@v4
         with:
           path: |
             out
-          key: kernel-out-Linux-${{ matrix.model }}-v1
+          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-${{ github.run_id }}
           restore-keys: |
-            kernel-out-Linux-${{ matrix.model }}-
+            kernel-out-${{ runner.os }}-${{ matrix.model }}-
 
       - name: Build kernel
         run: |
