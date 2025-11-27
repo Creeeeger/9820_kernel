@@ -129,9 +129,10 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
 
-    if (vclk && vclk->lut) {
+    if (vclk && vclk->lut && vclk->num_rates < manual_count)
         vclk->num_rates = manual_count;
 
+    if (vclk && vclk->lut) {
         for (idx = 0; idx < manual_count && idx < vclk->num_rates; idx++)
             vclk->lut[idx].rate = g3d_manual_ratevolt[idx].rate;
     }
@@ -636,6 +637,8 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         for (j = 0; j < fw_lv; j++) {
             new->table[j].rate = old->table[j].rate;
             new->table[j].volt = old->table[j].volt;
+            pr_info("  lv : [%7d], volt = %d uV (%d %%) \n", new->table[j].rate,
+                    new->table[j].volt, volt_offset_percent);
         }
 
         if (!strcmp(vclk->name, "dvfs_g3d")) {
