@@ -100,6 +100,31 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
     if (!manual_count)
         return;
 
+    if (vclk && vclk->num_rates < manual_count) {
+        struct vclk_lut *new_lut;
+        size_t old_count = vclk->num_rates;
+
+        new_lut = krealloc_array(vclk->lut, manual_count, sizeof(*new_lut),
+                                 GFP_KERNEL);
+        if (!new_lut) {
+            pr_err("  G3D: failed to grow LUT to %zu entries\n", manual_count);
+            manual_count = min_t(size_t, manual_count, old_count);
+        } else {
+            vclk->lut = new_lut;
+            for (idx = old_count; idx < manual_count; idx++) {
+                vclk->lut[idx].params = kcalloc(vclk->num_list,
+                                                sizeof(*vclk->lut[idx].params),
+                                                GFP_KERNEL);
+                if (!vclk->lut[idx].params) {
+                    pr_err("  G3D: failed to allocate params for LUT[%zu]\n",
+                           idx);
+                    manual_count = idx;
+                    break;
+                }
+            }
+        }
+    }
+
     memcpy(rate_table->table, g3d_manual_ratevolt,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
@@ -625,29 +650,27 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         old_param = sram_base + header[i].o_tables;
         new_param = map_base + fvmap_header[i].o_tables;
 
-        for (j = 0; j < fw_lv; j++) {
+        for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
+            size_t src_lv = (fw_lv && j >= fw_lv) ? (fw_lv - 1) : j;
+
             for (k = 0; k < fvmap_header[i].num_of_members; k++) {
+                size_t src_param_idx =
+                    fvmap_header[i].num_of_members * src_lv + k;
                 param_idx = fvmap_header[i].num_of_members * j + k;
 
-                new_param->val[param_idx] = old_param->val[param_idx];
-                if (vclk->lut[j].params[k] != new_param->val[param_idx]) {
-                    vclk->lut[j].params[k] = new_param->val[param_idx];
+                if (j < fw_lv)
+                    new_param->val[param_idx] = old_param->val[param_idx];
+                else
+                    new_param->val[param_idx] = new_param->val[src_param_idx];
 
-                    pr_info("Mis-match %s[%d][%d] : %d %d\n", vclk->name, j, k,
-                            vclk->lut[j].params[k], new_param->val[param_idx]);
-                }
-            }
-        }
+                if (vclk->lut && vclk->lut[j].params) {
+                    if (vclk->lut[j].params[k] != new_param->val[param_idx]) {
+                        vclk->lut[j].params[k] = new_param->val[param_idx];
 
-        if (!strcmp(vclk->name, "dvfs_g3d")) {
-            size_t manual_lv = fvmap_header[i].num_of_lv;
-
-            if (manual_lv > fw_lv && fw_lv) {
-                size_t stride = fvmap_header[i].num_of_members;
-
-                for (j = fw_lv; j < manual_lv; j++) {
-                    memcpy(&new_param->val[stride * j],
-                           &new_param->val[stride * (fw_lv - 1)], stride);
+                        pr_info("Mis-match %s[%d][%d] : %d %d\n", vclk->name, j,
+                                k, vclk->lut[j].params[k],
+                                new_param->val[param_idx]);
+                    }
                 }
             }
         }
