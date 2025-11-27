@@ -2119,6 +2119,7 @@ static ssize_t ect_raw_blob_read(struct file *file, char __user *user_buf,
         void *base;
         phys_addr_t phys;
         size_t size;
+        ssize_t ret;
 
         if (!ect_early_vm.phys_addr || !ect_early_vm.size)
                 return -ENODEV;
