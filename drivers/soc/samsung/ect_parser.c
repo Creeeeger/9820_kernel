@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 
 #define ALIGNMENT_SIZE 4
 
@@ -2847,6 +2848,215 @@ static int ect_extend_g3d_margin(void)
     return 0;
 }
 
+static int ect_override_g3d_tables(void)
+{
+    void *dvfs_blk, *asv_blk, *gen_blk;
+    struct ect_dvfs_domain *dvfs;
+    struct ect_voltage_domain *asv;
+    struct ect_gen_param_table *margin_tbl;
+
+    int new_levels = 13;
+    int old_levels;
+
+    /* --- DVFS domain holen --- */
+    dvfs_blk = ect_get_block(BLOCK_DVFS);
+    if (!dvfs_blk)
+        return -ENODEV;
+
+    dvfs = ect_dvfs_get_domain(dvfs_blk, "dvfs_g3d");
+    if (!dvfs)
+        return -ENODEV;
+
+    old_levels = dvfs->num_of_level;
+    if (old_levels >= new_levels) {
+        pr_info("[ECT] g3d override: already %d levels\n", old_levels);
+    } else {
+        /* 1) list_level: als raw u32 Buffer anlegen (kHz) */
+        {
+            void *new_list_level;
+            u32 *raw;
+            int i;
+
+            new_list_level = kzalloc(sizeof(u32) * new_levels, GFP_KERNEL);
+            if (!new_list_level)
+                return -ENOMEM;
+
+            raw = (u32 *)new_list_level;
+
+            /* absteigend in kHz, wie dein Dump */
+            raw[0]  = 754000;
+            raw[1]  = 702000;
+            raw[2]  = 676000;
+            raw[3]  = 650000;
+            raw[4]  = 598000;
+            raw[5]  = 572000;
+            raw[6]  = 433000;   /* bei dir 433000(X) */
+            raw[7]  = 377000;
+            raw[8]  = 325000;
+            raw[9]  = 260000;
+            raw[10] = 200000;
+            raw[11] = 156000;
+            raw[12] = 100000;
+
+            dvfs->list_level = new_list_level;
+        }
+
+        /* 2) list_dvfs_value: Mapping auf PLL-Index (0..12) */
+        {
+            u32 *new_map;
+            int c, i;
+            int clocks = dvfs->num_of_clock;
+
+            new_map = kzalloc(sizeof(u32) * clocks * new_levels, GFP_KERNEL);
+            if (!new_map)
+                return -ENOMEM;
+
+            for (c = 0; c < clocks; c++) {
+                for (i = 0; i < new_levels; i++)
+                    new_map[c * new_levels + i] = (u32)i;
+            }
+
+            dvfs->list_dvfs_value = new_map;
+        }
+
+        dvfs->num_of_level = new_levels;
+
+        /* optional: max/min sauber setzen (wenn irgendwo genutzt) */
+        dvfs->max_frequency = 754000;
+        dvfs->min_frequency = 100000;
+
+        pr_info("[ECT] g3d override: DVFS levels %d -> %d\n", old_levels, new_levels);
+    }
+
+    /* --- ASV domain holen --- */
+    asv_blk = ect_get_block(BLOCK_ASV);
+    if (!asv_blk)
+        return -ENODEV;
+
+    asv = ect_asv_get_domain(asv_blk, "dvfs_g3d");
+    if (!asv)
+        return -ENODEV;
+
+    old_levels = asv->num_of_level;
+    if (old_levels < new_levels) {
+        int g = asv->num_of_group;
+        int t;
+
+        /* 1) level_list (MHz) neu */
+        {
+            int32_t *new_level_list;
+
+            new_level_list = kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
+            if (!new_level_list)
+                return -ENOMEM;
+
+            new_level_list[0]  = 754;
+            new_level_list[1]  = 702;
+            new_level_list[2]  = 676;
+            new_level_list[3]  = 650;
+            new_level_list[4]  = 598;
+            new_level_list[5]  = 572;
+            new_level_list[6]  = 433;
+            new_level_list[7]  = 377;
+            new_level_list[8]  = 325;
+            new_level_list[9]  = 260;
+            new_level_list[10] = 200;
+            new_level_list[11] = 156;
+            new_level_list[12] = 100;
+
+            asv->level_list = new_level_list;
+        }
+
+        /* 2) jede TABLE VERSION aufblasen: neue Top-Row = Kopie der alten Top-Row */
+        for (t = 0; t < asv->num_of_table; t++) {
+            struct ect_voltage_table *tbl = &asv->table_list[t];
+
+            /* level_en ggf. erweitern (parser_version>=2) */
+            if (tbl->level_en) {
+                int32_t *new_en = kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
+                if (!new_en)
+                    return -ENOMEM;
+
+                /* neue 754 übernimmt enable von alter Top-Row (702) */
+                new_en[0] = ((int32_t *)tbl->level_en)[0];
+                memcpy(&new_en[1], tbl->level_en, sizeof(int32_t) * old_levels);
+                tbl->level_en = new_en;
+            }
+
+            /* parser_version>=3: voltages_step (u8) benutzen */
+            if (tbl->voltages_step) {
+                u8 *old = (u8 *)tbl->voltages_step;
+                u8 *neu = kzalloc(sizeof(u8) * g * new_levels, GFP_KERNEL);
+                if (!neu)
+                    return -ENOMEM;
+
+                /* neue Row 0 = alte Row 0 */
+                memcpy(&neu[0], &old[0], g * sizeof(u8));
+                /* alte 12 Rows nach unten schieben */
+                memcpy(&neu[g], &old[0], g * old_levels * sizeof(u8));
+
+                tbl->voltages_step = neu;
+                /* tbl->volt_step bleibt wie gesetzt */
+            }
+            /* parser_version<3: voltages (int32 uV) benutzen */
+            else if (tbl->voltages) {
+                int32_t *old = (int32_t *)tbl->voltages;
+                int32_t *neu = kzalloc(sizeof(int32_t) * g * new_levels, GFP_KERNEL);
+                if (!neu)
+                    return -ENOMEM;
+
+                memcpy(&neu[0], &old[0], g * sizeof(int32_t));
+                memcpy(&neu[g], &old[0], g * old_levels * sizeof(int32_t));
+
+                tbl->voltages = neu;
+            } else {
+                pr_warn("[ECT] g3d override: ASV table %d has no voltage data\n", t);
+            }
+        }
+
+        asv->num_of_level = new_levels;
+
+        pr_info("[ECT] g3d override: ASV levels %d -> %d\n", old_levels, new_levels);
+    }
+
+    /* --- GEN_PARAM: G3D_DD_margin aufblasen --- */
+    gen_blk = ect_get_block(BLOCK_GEN_PARAM);
+    if (!gen_blk)
+        return 0; /* nicht fatal */
+
+    margin_tbl = ect_gen_param_get_table(gen_blk, "G3D_DD_margin");
+    if (margin_tbl) {
+        int cols = margin_tbl->num_of_col;
+        int rows = margin_tbl->num_of_row;
+
+        if (cols == 2 && rows == 12) {
+            int32_t *oldp = (int32_t *)margin_tbl->parameter;
+            int32_t *newp = kzalloc(sizeof(int32_t) * 2 * 13, GFP_KERNEL);
+            int i;
+
+            if (!newp)
+                return -ENOMEM;
+
+            /* neue Row für 754 (Index 0) */
+            newp[0] = 0;
+            newp[1] = 12500;
+
+            /* alte Rows 0..11 werden zu 1..12, margin übernimmt man aus alter 2. Spalte */
+            for (i = 0; i < 12; i++) {
+                newp[(i + 1) * 2 + 0] = i + 1;
+                newp[(i + 1) * 2 + 1] = oldp[i * 2 + 1];
+            }
+
+            margin_tbl->parameter = newp;
+            margin_tbl->num_of_row = 13;
+
+            pr_info("[ECT] g3d override: G3D_DD_margin rows 12 -> 13\n");
+        }
+    }
+
+    return 0;
+}
+
 int ect_parse_binary_header(void) {
     int ret = 0;
     int i, j;
@@ -2898,13 +3108,16 @@ int ect_parse_binary_header(void) {
             ect_list[j].block_precedence = i;
         }
     }
-
+/*
     if (ect_extend_g3d_dvfs())
         pr_warn("[ECT] : failed to extend dvfs_g3d levels\n");
     if (ect_extend_g3d_asv())
         pr_warn("[ECT] : failed to extend asv dvfs_g3d levels\n");
     if (ect_extend_g3d_margin())
         pr_warn("[ECT] : failed to extend G3D_DD_margin levels\n");
+*/
+    
+    ect_override_g3d_tables();
 
     ect_header_info.block_handle = ect_header;
 
