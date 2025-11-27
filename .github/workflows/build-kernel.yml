@@ -28,14 +28,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ matrix.model }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-${{ runner.os }}-${{ matrix.model }}-
-
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -43,7 +35,6 @@ jobs:
             bc \
             bison \
             build-essential \
-            ccache \
             clang \
             cpio \
             flex \
@@ -59,28 +50,8 @@ jobs:
             zip \
             zstd
 
-      - name: Setup ccache environment
-        run: |
-          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESS=1" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESSLEVEL=5" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=10G" >> $GITHUB_ENV
-          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}" >> $GITHUB_ENV
-          echo "CCACHE_CPP2=yes" >> $GITHUB_ENV
-
-      - name: Restore kernel build output
-        uses: actions/cache@v4
-        with:
-          path: |
-            out
-          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-${{ github.run_id }}
-          restore-keys: |
-            kernel-out-${{ runner.os }}-${{ matrix.model }}-
-
       - name: Build kernel
         run: |
-          ls -la out || true
-          ls -la toolchain/neutron_18 || true
           chmod +x build.sh
           ./build.sh --model ${{ matrix.model }} --ksu y
 

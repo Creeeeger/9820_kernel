@@ -68,15 +68,12 @@ if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     popd > /dev/null
 fi
 
-MAKE_ARGS=(
-    LLVM=1
-    LLVM_IAS=1
-    ARCH=arm64
-    O=out
-    CC="ccache clang"
-    HOSTCC="ccache clang"
-    HOSTCXX="ccache clang++"
-)
+MAKE_ARGS="
+LLVM=1 \
+LLVM_IAS=1 \
+ARCH=arm64 \
+O=out
+"
 
 # Define specific variables
 case $MODEL in
@@ -141,33 +138,6 @@ fi
 rm -rf build/out/$MODEL
 mkdir -p build/out/$MODEL/zip/files
 mkdir -p build/out/$MODEL/zip/META-INF/com/google/android
-mkdir -p out
-
-CONFIG_SIGNATURE_FILE="out/.config.signature"
-CONFIG_FILES=(
-    arch/arm64/configs/exynos9820_defconfig
-    "arch/arm64/configs/${MODEL}.config"
-)
-
-if [[ -n "$KSU" ]]; then
-    CONFIG_FILES+=(arch/arm64/configs/ksu.config)
-fi
-
-if [[ -n "$RECOVERY" ]]; then
-    CONFIG_FILES+=(arch/arm64/configs/recovery.config)
-fi
-
-CONFIG_HASH=$(cat "${CONFIG_FILES[@]}" | sha256sum | awk '{print $1}')
-CONFIG_SIGNATURE=$(printf "model=%s\nksu=%s\nrecovery=%s\nhash=%s\n" "$MODEL" "${KSU_OPTION:-n}" "${RECOVERY_OPTION:-n}" "$CONFIG_HASH")
-BUILD_SIGNATURE_FILE="out/.build.signature"
-BUILD_SIGNATURE=$(printf "commit=%s\n%s" "$(git rev-parse HEAD 2>/dev/null)" "$CONFIG_SIGNATURE")
-
-REGENERATE_CONFIG=1
-if [[ -f "$CONFIG_SIGNATURE_FILE" ]]; then
-    if [[ "$(cat "$CONFIG_SIGNATURE_FILE")" == "$CONFIG_SIGNATURE" ]]; then
-        REGENERATE_CONFIG=0
-    fi
-fi
 
 # Build kernel image
 echo "-----------------------------------------------"
@@ -187,43 +157,13 @@ fi
 
 echo "-----------------------------------------------"
 echo "Building kernel using "$KERNEL_DEFCONFIG""
-if [[ $REGENERATE_CONFIG -eq 1 ]]; then
-    echo "Generating configuration file..."
-    echo "-----------------------------------------------"
-    make "${MAKE_ARGS[@]}" -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
-    echo "$CONFIG_SIGNATURE" > "$CONFIG_SIGNATURE_FILE"
-else
-    echo "Configuration unchanged; skipping defconfig step."
-    echo "-----------------------------------------------"
-fi
+echo "Generating configuration file..."
+echo "-----------------------------------------------"
+make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
 
-REQUIRED_ARTIFACTS=(
-    out/arch/arm64/boot/Image
-    out/vmlinux
-)
-
-NEED_BUILD=1
-if [[ -f "$BUILD_SIGNATURE_FILE" ]]; then
-    if [[ "$(cat "$BUILD_SIGNATURE_FILE")" == "$BUILD_SIGNATURE" ]]; then
-        NEED_BUILD=0
-        for artifact in "${REQUIRED_ARTIFACTS[@]}"; do
-            if [[ ! -f "$artifact" ]]; then
-                NEED_BUILD=1
-                break
-            fi
-        done
-    fi
-fi
-
-if [[ $NEED_BUILD -eq 0 ]]; then
-    echo "Build artifacts up to date; skipping kernel rebuild."
-    echo "-----------------------------------------------"
-else
-    echo "Building kernel..."
-    echo "-----------------------------------------------"
-    make "${MAKE_ARGS[@]}" -j$CORES || abort
-    echo "$BUILD_SIGNATURE" > "$BUILD_SIGNATURE_FILE"
-fi
+echo "Building kernel..."
+echo "-----------------------------------------------"
+make ${MAKE_ARGS} -j$CORES || abort
 
 # Define constant variables
 KERNEL_PATH=build/out/$MODEL/Image
