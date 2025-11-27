@@ -84,6 +84,56 @@ fvmap_calculate_initial_usage(const volatile struct fvmap_header *header,
     return ALIGN(max_offset, sizeof(u32));
 }
 
+static int fvmap_expand_gpu_lut(struct vclk *vclk, size_t manual_count) {
+    struct vclk_lut *new_lut;
+    size_t idx, old_count;
+
+    if (!vclk || !vclk->lut)
+        return -EINVAL;
+
+    old_count = vclk->num_rates;
+    if (manual_count <= old_count)
+        return 0;
+
+    new_lut = kcalloc(manual_count, sizeof(*new_lut), GFP_KERNEL);
+    if (!new_lut)
+        return -ENOMEM;
+
+    for (idx = 0; idx < manual_count; idx++) {
+        new_lut[idx].params =
+            kcalloc(vclk->num_list, sizeof(*new_lut[idx].params), GFP_KERNEL);
+        if (!new_lut[idx].params)
+            goto err_free;
+
+        if (idx < old_count) {
+            new_lut[idx].rate = vclk->lut[idx].rate;
+            memcpy(new_lut[idx].params, vclk->lut[idx].params,
+                   sizeof(unsigned int) * vclk->num_list);
+        } else if (old_count) {
+            new_lut[idx].rate = vclk->lut[old_count - 1].rate;
+            memcpy(new_lut[idx].params, vclk->lut[old_count - 1].params,
+                   sizeof(unsigned int) * vclk->num_list);
+        }
+    }
+
+    for (idx = 0; idx < old_count; idx++)
+        kfree(vclk->lut[idx].params);
+
+    kfree(vclk->lut);
+
+    vclk->lut = new_lut;
+    vclk->num_rates = manual_count;
+
+    return 0;
+
+err_free:
+    while (idx--)
+        kfree(new_lut[idx].params);
+    kfree(new_lut);
+
+    return -ENOMEM;
+}
+
 static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
                                          struct rate_volt_header *rate_table,
                                          struct vclk *vclk) {
@@ -104,8 +154,16 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
 
-    if (vclk && vclk->lut && vclk->num_rates < manual_count)
-        vclk->num_rates = manual_count;
+    if (vclk && vclk->lut && vclk->num_rates < manual_count) {
+        int ret = fvmap_expand_gpu_lut(vclk, manual_count);
+
+        if (ret) {
+            pr_err("  G3D: failed to expand LUT to %zu entries (%d)\n",
+                   manual_count, ret);
+            manual_count = min(manual_count, (size_t)vclk->num_rates);
+            header->num_of_lv = manual_count;
+        }
+    }
 
     if (vclk && vclk->lut) {
         for (idx = 0; idx < manual_count && idx < vclk->num_rates; idx++)
