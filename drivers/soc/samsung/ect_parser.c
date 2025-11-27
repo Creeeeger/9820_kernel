@@ -2639,7 +2639,7 @@ static int ect_override_g3d_tables(void)
 
             {
                 size_t stride_u32 = sizeof(struct ect_dvfs_level) / sizeof(u32);
-                p[12 * stride_u32 + 1] = 0;
+                p[12 * stride_u32 + 1] = 1;
             }
 
             dvfs->list_level = new_list_level;
