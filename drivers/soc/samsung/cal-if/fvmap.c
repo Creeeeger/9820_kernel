@@ -612,8 +612,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         for (j = 0; j < fw_lv; j++) {
             new->table[j].rate = old->table[j].rate;
             new->table[j].volt = old->table[j].volt;
-            pr_info("  lv : [%7d], volt = %d uV (%d %%) \n", new->table[j].rate,
-                    new->table[j].volt, volt_offset_percent);
         }
 
         if (!strcmp(vclk->name, "dvfs_g3d")) {
