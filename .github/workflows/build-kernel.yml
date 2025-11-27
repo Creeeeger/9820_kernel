@@ -61,9 +61,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ matrix.model }}-v1
+          key: kernel-out-Linux-${{ matrix.model }}-v1
           restore-keys: |
-            ccache-${{ runner.os }}-${{ matrix.model }}-
+            kernel-out-Linux-${{ matrix.model }}-
 
       - name: Restore kernel build output
         uses: actions/cache@v4
@@ -71,9 +71,9 @@ jobs:
           path: |
             out
             toolchain/neutron_18
-          key: kernel-out-${{ runner.os }}-${{ matrix.model }}-v1
+          key: kernel-out-Linux-${{ matrix.model }}-v1
           restore-keys: |
-            kernel-out-${{ runner.os }}-${{ matrix.model }}-
+            kernel-out-Linux-${{ matrix.model }}-
 
       - name: Build kernel
         run: |

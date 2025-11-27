@@ -2107,10 +2107,42 @@ static int dump_all_open(struct inode *inode, struct file *file)
 }
 
 static struct file_operations ops_all_dump = {
-	.open = dump_all_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+        .open = dump_all_open,
+        .read = seq_read,
+        .llseek = seq_lseek,
+        .release = single_release,
+};
+
+static ssize_t ect_raw_blob_read(struct file *file, char __user *user_buf,
+               size_t count, loff_t *ppos)
+{
+        void *base;
+        phys_addr_t phys;
+        size_t size;
+
+        if (!ect_early_vm.phys_addr || !ect_early_vm.size)
+                return -ENODEV;
+
+        phys = ect_early_vm.phys_addr;
+        size = ect_early_vm.size;
+
+        base = memremap(phys, size, MEMREMAP_WB);
+        if (!base) {
+                pr_err("[ect-raw] failed to remap 0x%llx (size 0x%zx)\n",
+                       (unsigned long long)phys, size);
+                return -ENOMEM;
+        }
+
+        ret = simple_read_from_buffer(user_buf, count, ppos, base, size);
+
+        memunmap(base);
+
+        return ret;
+}
+
+static const struct file_operations ops_raw_blob_dump = {
+        .read = ect_raw_blob_read,
+        .llseek = default_llseek,
 };
 
 static ssize_t create_binary_store(struct class *class,
@@ -2172,10 +2204,15 @@ static int ect_dump_init(void)
 	if (!d)
 		return -ENOMEM;
 
-	d = debugfs_create_file(ect_header_info.dump_node_name, S_IRUGO, root, &ect_header_info,
-				&ect_header_info.dump_ops);
-	if (!d)
-		return -ENOMEM;
+        d = debugfs_create_file("raw_blob", S_IRUGO, root, NULL,
+                                &ops_raw_blob_dump);
+        if (!d)
+                return -ENOMEM;
+
+        d = debugfs_create_file(ect_header_info.dump_node_name, S_IRUGO, root, &ect_header_info,
+                                &ect_header_info.dump_ops);
+        if (!d)
+                return -ENOMEM;
 
 	for (i = 0; i < ARRAY_SIZE32(ect_list); ++i) {
 		if (ect_list[i].block_handle == NULL)
