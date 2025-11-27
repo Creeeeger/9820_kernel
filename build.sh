@@ -68,12 +68,15 @@ if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     popd > /dev/null
 fi
 
-MAKE_ARGS="
-LLVM=1 \
-LLVM_IAS=1 \
-ARCH=arm64 \
-O=out
-"
+MAKE_ARGS=(
+    LLVM=1
+    LLVM_IAS=1
+    ARCH=arm64
+    O=out
+    CC="ccache clang"
+    HOSTCC="ccache clang"
+    HOSTCXX="ccache clang++"
+)
 
 # Define specific variables
 case $MODEL in
@@ -185,7 +188,7 @@ echo "Building kernel using "$KERNEL_DEFCONFIG""
 if [[ $REGENERATE_CONFIG -eq 1 ]]; then
     echo "Generating configuration file..."
     echo "-----------------------------------------------"
-    make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
+    make "${MAKE_ARGS[@]}" -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
     echo "$CONFIG_SIGNATURE" > "$CONFIG_SIGNATURE_FILE"
 else
     echo "Configuration unchanged; skipping defconfig step."
@@ -194,7 +197,7 @@ fi
 
 echo "Building kernel..."
 echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES || abort
+make "${MAKE_ARGS[@]}" -j$CORES || abort
 
 # Define constant variables
 KERNEL_PATH=build/out/$MODEL/Image
