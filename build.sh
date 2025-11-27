@@ -72,10 +72,7 @@ MAKE_ARGS="
 LLVM=1 \
 LLVM_IAS=1 \
 ARCH=arm64 \
-O=out \
-CC=\"ccache clang\" \
-HOSTCC=\"ccache clang\" \
-HOSTCXX=\"ccache clang++\"
+O=out
 "
 
 # Define specific variables
