@@ -159,6 +159,8 @@ fi
 
 CONFIG_HASH=$(cat "${CONFIG_FILES[@]}" | sha256sum | awk '{print $1}')
 CONFIG_SIGNATURE=$(printf "model=%s\nksu=%s\nrecovery=%s\nhash=%s\n" "$MODEL" "${KSU_OPTION:-n}" "${RECOVERY_OPTION:-n}" "$CONFIG_HASH")
+BUILD_SIGNATURE_FILE="out/.build.signature"
+BUILD_SIGNATURE=$(printf "commit=%s\n%s" "$(git rev-parse HEAD 2>/dev/null)" "$CONFIG_SIGNATURE")
 
 REGENERATE_CONFIG=1
 if [[ -f "$CONFIG_SIGNATURE_FILE" ]]; then
@@ -195,9 +197,33 @@ else
     echo "-----------------------------------------------"
 fi
 
-echo "Building kernel..."
-echo "-----------------------------------------------"
-make "${MAKE_ARGS[@]}" -j$CORES || abort
+REQUIRED_ARTIFACTS=(
+    out/arch/arm64/boot/Image
+    out/vmlinux
+)
+
+NEED_BUILD=1
+if [[ -f "$BUILD_SIGNATURE_FILE" ]]; then
+    if [[ "$(cat "$BUILD_SIGNATURE_FILE")" == "$BUILD_SIGNATURE" ]]; then
+        NEED_BUILD=0
+        for artifact in "${REQUIRED_ARTIFACTS[@]}"; do
+            if [[ ! -f "$artifact" ]]; then
+                NEED_BUILD=1
+                break
+            fi
+        done
+    fi
+fi
+
+if [[ $NEED_BUILD -eq 0 ]]; then
+    echo "Build artifacts up to date; skipping kernel rebuild."
+    echo "-----------------------------------------------"
+else
+    echo "Building kernel..."
+    echo "-----------------------------------------------"
+    make "${MAKE_ARGS[@]}" -j$CORES || abort
+    echo "$BUILD_SIGNATURE" > "$BUILD_SIGNATURE_FILE"
+fi
 
 # Define constant variables
 KERNEL_PATH=build/out/$MODEL/Image
