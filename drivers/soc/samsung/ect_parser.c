@@ -27,7 +27,6 @@
 static struct ect_info ect_list[];
 
 #define G3D_TOP_LEVEL_KHZ 754000
-#define G3D_TOP_LEVEL_MHZ 754
 
 static char ect_signature[] = "PARA";
 
@@ -2692,7 +2691,7 @@ static int ect_extend_g3d_asv(void)
         goto err_table_pointers;
     }
 
-    level_list[0] = G3D_TOP_LEVEL_MHZ;
+    level_list[0] = G3D_TOP_LEVEL_KHZ;
     memcpy(&level_list[1], domain->level_list, sizeof(*level_list) * num_of_level);
 
     for (i = 0; i < num_of_table; ++i) {
@@ -2781,49 +2780,69 @@ err_table_pointers:
     return ret;
 }
 
-static int ect_extend_g3d_dd_margin_genparam(void)
+static int ect_extend_g3d_margin(void)
 {
-    void *gen_block;
-    struct ect_gen_param_table *table;
-    int32_t *oldp, *newp;
-    int i;
+    int i, j;
+    void *margin_block;
+    struct ect_margin_domain *domain;
+    int num_of_level, num_of_group;
 
-    gen_block = ect_get_block(BLOCK_GEN_PARAM);
-    if (!gen_block)
+    margin_block = ect_get_block(BLOCK_MARGIN);
+    if (!margin_block)
         return -EINVAL;
 
-    table = ect_gen_param_get_table(gen_block, "G3D_DD_margin");
-    if (!table)
+    domain = ect_margin_get_domain(margin_block, "G3D_DD_margin");
+    if (!domain)
         return -EINVAL;
 
-    if (table->num_of_col != 2)
-        return -EINVAL;
-
-    if (table->num_of_row >= 13)
+    if (domain->num_of_level >= 13)
         return 0;
 
-    if (!table->parameter)
+    num_of_level = domain->num_of_level;
+    num_of_group = domain->num_of_group;
+
+    if (!num_of_group)
         return -EINVAL;
 
-    oldp = (int32_t *)table->parameter; /* 2 * 12 ints */
-    newp = kzalloc(sizeof(*newp) * 2 * 13, GFP_KERNEL);
-    if (!newp)
-        return -ENOMEM;
+    if (domain->offset_compact) {
+        unsigned char *offset = kzalloc(
+            sizeof(unsigned char) * (num_of_level + 1) * num_of_group, GFP_KERNEL);
 
-    /* new row 0 for 754: index 0, margin as old level 0 */
-    newp[0] = 0;
-    newp[1] = oldp[1];
+        if (!offset)
+            return -ENOMEM;
 
-    /* old rows 0..11 -> new rows 1..12 */
-    for (i = 0; i < 12; i++) {
-        newp[(i + 1) * 2 + 0] = i + 1;
-        newp[(i + 1) * 2 + 1] = oldp[i * 2 + 1];
+        memcpy(offset, domain->offset_compact,
+               sizeof(unsigned char) * num_of_group);
+
+        for (i = 0; i < num_of_level; ++i) {
+            for (j = 0; j < num_of_group; ++j)
+                offset[(i + 1) * num_of_group + j] =
+                    domain->offset_compact[i * num_of_group + j];
+        }
+
+        domain->offset_compact = offset;
+    } else if (domain->offset) {
+        unsigned int *offset = kzalloc(
+            sizeof(unsigned int) * (num_of_level + 1) * num_of_group, GFP_KERNEL);
+
+        if (!offset)
+            return -ENOMEM;
+
+        memcpy(offset, domain->offset,
+               sizeof(unsigned int) * num_of_group);
+
+        for (i = 0; i < num_of_level; ++i) {
+            for (j = 0; j < num_of_group; ++j)
+                offset[(i + 1) * num_of_group + j] =
+                    domain->offset[i * num_of_group + j];
+        }
+
+        domain->offset = offset;
+    } else {
+        return -EINVAL;
     }
 
-    table->parameter = newp;
-    table->num_of_row = 13;
-
-    kfree(oldp);
+    domain->num_of_level = num_of_level + 1;
 
     return 0;
 }
@@ -2884,7 +2903,7 @@ int ect_parse_binary_header(void) {
         pr_warn("[ECT] : failed to extend dvfs_g3d levels\n");
     if (ect_extend_g3d_asv())
         pr_warn("[ECT] : failed to extend asv dvfs_g3d levels\n");
-    if (ect_extend_g3d_dd_margin_genparam())
+    if (ect_extend_g3d_margin())
         pr_warn("[ECT] : failed to extend G3D_DD_margin levels\n");
 
     ect_header_info.block_handle = ect_header;
