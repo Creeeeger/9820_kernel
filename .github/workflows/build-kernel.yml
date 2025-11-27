@@ -57,30 +57,17 @@ jobs:
             zip \
             zstd
 
-      - name: Restore ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: kernel-out-Linux-${{ matrix.model }}-v1
-          restore-keys: |
-            kernel-out-Linux-${{ matrix.model }}-
-
       - name: Restore kernel build output
         uses: actions/cache@v4
         with:
           path: |
             out
-            toolchain/neutron_18
           key: kernel-out-Linux-${{ matrix.model }}-v1
           restore-keys: |
             kernel-out-Linux-${{ matrix.model }}-
 
       - name: Build kernel
         run: |
-          echo "cache-hit=${{ steps.cache-build.outputs.cache-hit }}"
-          pwd
-          ls -la $GITHUB_WORKSPACE/out || true
-          ls -la $GITHUB_WORKSPACE/toolchain/neutron_18 || true
           ls -la out || true
           ls -la toolchain/neutron_18 || true
           chmod +x build.sh
