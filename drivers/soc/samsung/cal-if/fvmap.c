@@ -91,7 +91,6 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
     size_t capacity = fvmap_ratevolt_capacity(header);
     size_t idx;
 
-    /* 1. Safety Check: Truncate if physical SRAM map cannot hold it */
     if (capacity < manual_count) {
         pr_warn("  G3D manual table truncated to %zu entries (capacity %zu)\n",
                 capacity, manual_count);
@@ -101,61 +100,13 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
     if (!manual_count)
         return;
 
-    /* 2. Update SRAM Header (Physical Map) */
     memcpy(rate_table->table, g3d_manual_ratevolt,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
 
-    /* 3. Reallocate Kernel LUT (Virtual Map) if needed */
-    if (vclk && vclk->lut) {
-        
-        /* Check if we are about to overflow the existing array */
-        if (vclk->num_rates < manual_count) {
-            pr_info("  G3D: Resizing LUT from %d to %zu entries\n",
-                    vclk->num_rates, manual_count);
+    if (vclk && vclk->lut && vclk->num_rates < manual_count)
+        vclk->num_rates = manual_count;
 
-            /* Allocate new larger array (zero-initialized) */
-            /* Using typeof avoids needing the exact struct name */
-            void *new_lut = kcalloc(manual_count, sizeof(*vclk->lut), GFP_KERNEL);
-            
-            if (!new_lut) {
-                pr_err("  G3D: Failed to allocate memory for manual table!\n");
-                return; /* Abort to prevent crash */
-            }
-
-            /* Copy existing data to preserve params (dividers/mux settings) */
-            /* We copy the amount that fit in the OLD array */
-            memcpy(new_lut, vclk->lut, vclk->num_rates * sizeof(*vclk->lut));
-
-            /* * OPTIONAL: Duplicate parameters for the new extended entries.
-             * New entries (11, 12) are currently 0. We usually want them
-             * to have the same bus/divider params as the highest previous level.
-             */
-            if (vclk->num_rates > 0) {
-                 size_t old_last = vclk->num_rates - 1;
-                 size_t entry_size = sizeof(*vclk->lut);
-                 char *lut_base = (char *)new_lut;
-                 
-                 for (idx = vclk->num_rates; idx < manual_count; idx++) {
-                     memcpy(lut_base + (idx * entry_size),
-                            lut_base + (old_last * entry_size),
-                            entry_size);
-                 }
-            }
-
-            /* Free the old small array */
-            kfree(vclk->lut);
-
-            /* Point vclk to the new big array */
-            vclk->lut = new_lut;
-            
-            /* Update the size tracking variable */
-            vclk->num_rates = manual_count;
-        }
-    }
-
-    /* 4. Populate the Rates */
-    /* Now this loop is safe because vclk->lut is 13 entries big */
     if (vclk && vclk->lut) {
         for (idx = 0; idx < manual_count && idx < vclk->num_rates; idx++)
             vclk->lut[idx].rate = g3d_manual_ratevolt[idx].rate;
