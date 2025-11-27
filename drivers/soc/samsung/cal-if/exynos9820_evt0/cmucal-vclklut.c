@@ -46,7 +46,7 @@ unsigned int vdd_cam_uud_lut_params[] = {
 	600000, 11, 3, 6, 120000, 7, 1, 
 };
 unsigned int vdd_cheetah_sod_lut_params[] = {
-	3500000, 1, 
+	2850250, 1, 
 };
 unsigned int vdd_cheetah_od_lut_params[] = {
 	2224857, 0, 
@@ -58,7 +58,7 @@ unsigned int vdd_cheetah_ud_lut_params[] = {
 	1100000, 0, 
 };
 unsigned int vdd_ananke_sod_lut_params[] = {
-	2400000, 1, 
+	1950000, 1, 
 };
 unsigned int vdd_ananke_od_lut_params[] = {
 	1599000, 1, 

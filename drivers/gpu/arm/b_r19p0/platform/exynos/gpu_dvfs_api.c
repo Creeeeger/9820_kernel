@@ -325,7 +325,7 @@ int gpu_dvfs_clock_lock(gpu_dvfs_lock_command lock_command, gpu_dvfs_lock_type l
 		spin_unlock_irqrestore(&platform->gpu_dvfs_spinlock, flags);
 
 		if ((platform->min_lock > 0) && (platform->cur_clock < platform->min_lock)
-				&& (!platform->max_lock || (platform->min_lock <= platform->max_lock)))
+						&& (platform->min_lock <= platform->max_lock))
 			gpu_set_target_clk_vol(platform->min_lock, false);
 
 		GPU_LOG(DVFS_DEBUG, LSI_GPU_MIN_LOCK, lock_type, clock,

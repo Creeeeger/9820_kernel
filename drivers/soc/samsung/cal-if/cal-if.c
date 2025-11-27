@@ -1,7 +1,5 @@
 #include <linux/module.h>
 #include <linux/debug-snapshot.h>
-#include <linux/printk.h>
-#include <linux/string.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/cal-if.h>
 #ifdef CONFIG_EXYNOS9820_BTS
@@ -33,12 +31,12 @@ static DEFINE_SPINLOCK(pmucal_cpu_lock);
 
 unsigned int cal_clk_is_enabled(unsigned int id)
 {
-        return 0;
+	return 0;
 }
 
 unsigned long cal_dfs_get_max_freq(unsigned int id)
 {
-        return vclk_get_max_freq(id);
+	return vclk_get_max_freq(id);
 }
 
 unsigned long cal_dfs_get_min_freq(unsigned int id)
@@ -119,11 +117,11 @@ unsigned long cal_dfs_get_rate(unsigned int id)
 
 int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
 {
-        int ret;
+	int ret;
 
-        ret = vclk_get_rate_table(id, table);
+	ret = vclk_get_rate_table(id, table);
 
-        return ret;
+	return ret;
 }
 
 int cal_clk_setrate(unsigned int id, unsigned long rate)
@@ -341,11 +339,7 @@ extern int cal_is_lastcore_detecting(unsigned int cpu)
 
 int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 {
-        int entries;
-
-        entries = fvmap_get_voltage_table(id, table);
-
-        return entries;
+	return fvmap_get_voltage_table(id, table);
 }
 
 void cal_dfs_set_volt_margin(unsigned int id, int volt)
@@ -355,7 +349,7 @@ void cal_dfs_set_volt_margin(unsigned int id, int volt)
 }
 
 int cal_dfs_get_rate_asv_table(unsigned int id,
-				       struct dvfs_rate_volt *table)
+					struct dvfs_rate_volt *table)
 {
 	unsigned long rate[48];
 	unsigned int volt[48];
@@ -363,10 +357,8 @@ int cal_dfs_get_rate_asv_table(unsigned int id,
 	int idx;
 
 	num_of_entry = cal_dfs_get_rate_table(id, rate);
-	if (num_of_entry == 0) {
-		pr_info("[cal-if] id %x reported 0 rate entries\n", id);
+	if (num_of_entry == 0)
 		return 0;
-	}
 
 	if (num_of_entry != cal_dfs_get_asv_table(id, volt)) {
 		pr_info("[cal-if] id %x rate/asv count mismatch (%d)\n",

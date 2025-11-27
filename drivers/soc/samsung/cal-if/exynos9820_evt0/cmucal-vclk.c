@@ -3289,13 +3289,13 @@ struct vclk_lut cmucal_vclk_vdd_cam_lut[] = {
 	{600000, vdd_cam_uud_lut_params},
 };
 struct vclk_lut cmucal_vclk_vdd_cheetah_lut[] = {
-	{3500000, vdd_cheetah_sod_lut_params},
+	{2850250, vdd_cheetah_sod_lut_params},
 	{2224857, vdd_cheetah_od_lut_params},
 	{1834857, vdd_cheetah_nm_lut_params},
 	{1100000, vdd_cheetah_ud_lut_params},
 };
 struct vclk_lut cmucal_vclk_vdd_ananke_lut[] = {
-	{2400000, vdd_ananke_sod_lut_params},
+	{1950000, vdd_ananke_sod_lut_params},
 	{1599000, vdd_ananke_od_lut_params},
 	{1150500, vdd_ananke_nm_lut_params},
 	{650000, vdd_ananke_ud_lut_params},
