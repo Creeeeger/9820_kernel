@@ -21,8 +21,6 @@ void __iomem *sram_fvmap_base;
 static int init_margin_table[MAX_MARGIN_ID];
 static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
-static size_t fvmap_alloc_offset;
-static size_t fvmap_alloc_limit;
 
 static int __init get_mif_volt(char *str)
 {
@@ -224,9 +222,9 @@ early_param("volt_offset_percent", get_percent_margin_volt);
 
 static void *fvmap_alloc_extra(size_t size, size_t align)
 {
-        void *ptr;
+	void *ptr;
 
-        fvmap_alloc_offset = ALIGN(fvmap_alloc_offset, align);
+	fvmap_alloc_offset = ALIGN(fvmap_alloc_offset, align);
 	if (fvmap_alloc_offset + size > fvmap_alloc_limit)
 		return NULL;
 
@@ -484,29 +482,27 @@ static const struct attribute_group percent_margin_group = {
 
 static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base)
 {
-        volatile struct fvmap_header *fvmap_header, *header;
-        struct rate_volt_header *old, *new;
-        struct dvfs_table *old_param, *new_param;
-        struct clocks *clks;
-        struct pll_header *plls;
-        struct vclk *vclk;
-        unsigned int member_addr;
-        unsigned int blk_idx, param_idx;
-        int size, margin;
-        int i, j, k;
-        size_t max_offset;
+	volatile struct fvmap_header *fvmap_header, *header;
+	struct rate_volt_header *old, *new;
+	struct dvfs_table *old_param, *new_param;
+	struct clocks *clks;
+	struct pll_header *plls;
+	struct vclk *vclk;
+	unsigned int member_addr;
+	unsigned int blk_idx, param_idx;
+	int size, margin;
+	int i, j, k;
 
 	fvmap_header = map_base;
 	header = sram_base;
 
-        size = cmucal_get_list_size(ACPM_VCLK_TYPE);
-        max_offset = sizeof(struct fvmap_header) * size;
+	size = cmucal_get_list_size(ACPM_VCLK_TYPE);
 
-        for (i = 0; i < size; i++) {
-                /* load fvmap info */
-                fvmap_header[i].dvfs_type = header[i].dvfs_type;
-                fvmap_header[i].num_of_lv = header[i].num_of_lv;
-                fvmap_header[i].num_of_members = header[i].num_of_members;
+	for (i = 0; i < size; i++) {
+		/* load fvmap info */
+		fvmap_header[i].dvfs_type = header[i].dvfs_type;
+		fvmap_header[i].num_of_lv = header[i].num_of_lv;
+		fvmap_header[i].num_of_members = header[i].num_of_members;
 		fvmap_header[i].num_of_pll = header[i].num_of_pll;
 		fvmap_header[i].num_of_mux = header[i].num_of_mux;
 		fvmap_header[i].num_of_div = header[i].num_of_div;
@@ -517,17 +513,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		fvmap_header[i].reserved[1] = header[i].reserved[1];
 		fvmap_header[i].block_addr[0] = header[i].block_addr[0];
 		fvmap_header[i].block_addr[1] = header[i].block_addr[1];
-                fvmap_header[i].block_addr[2] = header[i].block_addr[2];
-                fvmap_header[i].o_members = header[i].o_members;
-                fvmap_header[i].o_ratevolt = header[i].o_ratevolt;
-                fvmap_header[i].o_tables = header[i].o_tables;
-
-                max_offset = max_t(size_t, max_offset, header[i].o_members +
-                                   sizeof(unsigned short) * header[i].num_of_members);
-                max_offset = max_t(size_t, max_offset, header[i].o_ratevolt +
-                                   sizeof(struct rate_volt) * header[i].num_of_lv);
-                max_offset = max_t(size_t, max_offset, header[i].o_tables +
-                                   header[i].num_of_members * header[i].num_of_lv);
+		fvmap_header[i].block_addr[2] = header[i].block_addr[2];
+		fvmap_header[i].o_members = header[i].o_members;
+		fvmap_header[i].o_ratevolt = header[i].o_ratevolt;
+		fvmap_header[i].o_tables = header[i].o_tables;
 
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
@@ -588,17 +577,14 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				new_param->val[param_idx] = old_param->val[param_idx];
 				if (vclk->lut[j].params[k] != new_param->val[param_idx]) {
 					vclk->lut[j].params[k] = new_param->val[param_idx];
-                                pr_info("Mis-match %s[%d][%d] : %d %d\n",
-                                        vclk->name, j, k,
-                                        vclk->lut[j].params[k],
-                                        new_param->val[param_idx]);
-                                }
-                        }
-                }
-        }
-
-        fvmap_alloc_limit = FVMAP_SIZE;
-        fvmap_alloc_offset = ALIGN(max_offset, __alignof__(struct rate_volt));
+					pr_info("Mis-match %s[%d][%d] : %d %d\n",
+						vclk->name, j, k,
+						vclk->lut[j].params[k],
+						new_param->val[param_idx]);
+				}
+			}
+		}
+	}
 }
 
 int fvmap_init(void __iomem *sram_base)
