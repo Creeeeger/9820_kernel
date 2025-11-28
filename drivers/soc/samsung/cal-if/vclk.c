@@ -17,71 +17,28 @@ unsigned int asv_table_ver = 0;
 unsigned int main_rev;
 unsigned int sub_rev;
 
-static int vclk_add_level_clone(struct vclk *vclk, unsigned int new_rate,
-                                int template_idx) {
-    int i, insert_idx;
-    struct vclk_lut *new_lut;
-    int *new_params;
+static void vclk_debug_dump_lut(struct vclk *vclk) {
+    int i, j;
 
-    if (!vclk || !vclk->lut)
-        return -EINVAL;
+    if (!vclk || !vclk->lut) {
+        pr_info("[vclk-debug] no lut for vclk\n");
+        return;
+    }
 
-    if (template_idx < 0 || template_idx >= vclk->num_rates)
-        return -EINVAL;
-
-    new_lut =
-        kzalloc(sizeof(struct vclk_lut) * (vclk->num_rates + 1), GFP_KERNEL);
-    if (!new_lut)
-        return -ENOMEM;
-
-    insert_idx = vclk->num_rates;
+    pr_info("[vclk-debug] dump for vclk '%s': num_rates=%d, num_list=%d\n",
+            vclk->name, vclk->num_rates, vclk->num_list);
 
     for (i = 0; i < vclk->num_rates; i++) {
-        if (vclk->lut[i].rate > new_rate) {
-            insert_idx = i;
-            break;
+        struct vclk_lut *l = &vclk->lut[i];
+
+        pr_info("[vclk-debug]   lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
+        for (j = 0; j < vclk->num_list; j++) {
+            pr_info("[vclk-debug]     param[%02d] (clk_id=0x%x) = 0x%x\n", j,
+                    vclk->list[j], vclk->lut[i].params[j]);
         }
+
+        pr_cont("\n");
     }
-
-    for (i = 0; i < insert_idx; i++)
-        new_lut[i] = vclk->lut[i];
-
-    new_lut[insert_idx].rate = new_rate;
-    new_params = kcalloc(vclk->num_list, sizeof(int), GFP_KERNEL);
-    if (!new_params) {
-        kfree(new_lut);
-        return -ENOMEM;
-    }
-
-    memcpy(new_params, vclk->lut[template_idx].params,
-           sizeof(int) * vclk->num_list);
-
-    /*
-     * TODO: Future overclocking work can adjust individual new_params[k]
-     * values here to program a distinct PLL configuration rather than
-     * reusing the template parameters. Currently this helper only clones
-     * an existing configuration for experimentation with rate labels.
-     */
-    new_lut[insert_idx].params = new_params;
-
-    for (i = insert_idx; i < vclk->num_rates; i++)
-        new_lut[i + 1] = vclk->lut[i];
-
-    for (i = 0; i < vclk->num_rates; i++)
-        kfree(vclk->lut[i].params);
-    kfree(vclk->lut);
-
-    vclk->lut = new_lut;
-    vclk->num_rates += 1;
-
-    if (new_rate > vclk->max_freq)
-        vclk->max_freq = new_rate;
-
-    pr_info("[vclk-debug] added cloned level to '%s': rate=%u from template=%d "
-            "at idx=%d\n",
-            vclk->name, new_rate, template_idx, insert_idx);
-
-    return 0;
 }
 
 static struct vclk_lut *get_lut(struct vclk *vclk, unsigned int rate) {
@@ -679,6 +636,8 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
         for (i = 0; i < vclk->num_rates; i++)
             pr_info("[vclk]   g3d lut[%02d] rate=%u\n", i, vclk->lut[i].rate);
     }
+
+    vclk_debug_dump_lut(vclk);
 
     return ret;
 
