@@ -26,6 +26,8 @@ void __iomem *sram_fvmap_base;
 static int init_margin_table[MAX_MARGIN_ID];
 static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
+static struct vclk_lut *g3d_lut_override;
+static size_t g3d_lut_override_cap;
 
 #define G3D_MANUAL_RATE(_mhz, _uv) {.rate = (_mhz) * 1000U, .volt = (_uv)}
 
@@ -60,32 +62,20 @@ fvmap_ratevolt_capacity(const volatile struct fvmap_header *header) {
     return capacity;
 }
 
-static int vclk_ensure_lut(struct vclk *vclk, size_t need)
+static int g3d_ensure_lut(struct vclk *vclk, size_t need)
 {
-    struct vclk_lut *new_lut;
-
-    if (!vclk)
-        return -EINVAL;
-
-    if (vclk->lut_capacity >= need)
+    if (g3d_lut_override_cap >= need && g3d_lut_override)
         return 0;
 
-    new_lut = kcalloc(need, sizeof(*new_lut), GFP_KERNEL);
-    if (!new_lut)
+    kfree(g3d_lut_override);
+    g3d_lut_override = kcalloc(need, sizeof(*g3d_lut_override), GFP_KERNEL);
+    if (!g3d_lut_override) {
+        g3d_lut_override_cap = 0;
         return -ENOMEM;
+    }
 
-    /* preserve existing content if any */
-    if (vclk->lut && vclk->lut_capacity)
-        memcpy(new_lut, vclk->lut, vclk->lut_capacity * sizeof(*new_lut));
-
-    /* only free if we own the old allocation */
-    if (vclk->lut_dynamic)
-        kfree(vclk->lut);
-
-    vclk->lut = new_lut;
-    vclk->lut_capacity = need;
-    vclk->lut_dynamic = true;
-
+    g3d_lut_override_cap = need;
+    vclk->lut = g3d_lut_override;   /* replace pointer */
     return 0;
 }
 
@@ -135,23 +125,18 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
 
-    if (vclk && vclk->lut) {
-        /* Make sure LUT storage is large enough for manual_count entries */
-        if (vclk_ensure_lut(vclk, manual_count)) {
-            pr_err("  G3D: failed to grow LUT to %zu entries, keeping %u\n",
-                   manual_count, vclk->lut_capacity);
-            manual_count = min(manual_count, (size_t)vclk->lut_capacity);
-        }
-
-        /* clear whole LUT (your requested “clear the array”) */
-        memset(vclk->lut, 0, vclk->lut_capacity * sizeof(*vclk->lut));
-
-        vclk->num_rates = manual_count;
-
-        /* populate LUT rates from the custom table */
-        for (idx = 0; idx < manual_count; idx++)
-            vclk->lut[idx].rate = g3d_manual_ratevolt[idx].rate;
+    if (vclk) {
+    if (g3d_ensure_lut(vclk, manual_count)) {
+        pr_err("G3D: failed to allocate LUT\n");
+        return;
     }
+
+    memset(vclk->lut, 0, g3d_lut_override_cap * sizeof(*vclk->lut));
+    vclk->num_rates = manual_count;
+
+    for (idx = 0; idx < manual_count; idx++)
+        vclk->lut[idx].rate = g3d_manual_ratevolt[idx].rate;
+}
 }
 
 static int __init get_mif_volt(char *str) {
