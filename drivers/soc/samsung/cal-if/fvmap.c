@@ -98,7 +98,7 @@ fvmap_calculate_initial_usage(const volatile struct fvmap_header *header,
     for (idx = 0; idx < num_of_vclks; idx++) {
         size_t ratevolt_bytes =
             header[idx].num_of_lv * sizeof(struct rate_volt);
-        size_t table_bytes = header[idx].num_of_lv * header[idx].num_of_members;
+        size_t table_bytes = header[idx].num_of_lv * header[idx].num_of_members*sizeof(((struct dvfs_table *)0)->val[0]);
         size_t member_bytes =
             header[idx].num_of_members * sizeof(unsigned short);
 
@@ -561,7 +561,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
 
             if (manual_lv > capacity) {
                 size_t ratevolt_bytes = manual_lv * sizeof(struct rate_volt);
-                size_t table_bytes = manual_lv * fvmap_header[i].num_of_members;
+                size_t table_bytes = manual_lv * fvmap_header[i].num_of_members*sizeof(((struct dvfs_table *)0)->val[0]);
                 size_t new_ratevolt_offset =
                     ALIGN(next_free_offset, sizeof(struct rate_volt));
                 size_t new_tables_offset =
@@ -685,6 +685,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                     memcpy(&new_param->val[stride * j],
        &new_param->val[stride * (fw_lv - 1)],
        stride * sizeof(new_param->val[0]));
+
+                    memcpy(vclk->lut[j].params,
+                   vclk->lut[fw_lv - 1].params,
+                   stride * sizeof(vclk->lut[j].params[0]));
                 }
             }
         }
