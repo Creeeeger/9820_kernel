@@ -37,56 +37,13 @@ static const struct rate_volt g3d_manual_ratevolt[] = {
     G3D_MANUAL_RATE(100, 537500),
 };
 
-static int patch_tables(volatile struct fvmap_header *hdr,
-                        const struct rate_volt_header *old_rv,
-                        const struct dvfs_table *old_param,
-                        struct rate_volt_header *new_rv,
-                        struct dvfs_table *new_param, struct vclk *vclk,
-                        size_t old_lv) {
-    size_t manual_lv = min_size(ARRAY_SIZE(g3d_manual_ratevolt), old_lv);
-    size_t members = hdr->num_of_members;
-
-    if (!vclk)
-        return -EINVAL;
-
-    if (g3d_ensure_lut(vclk, manual_lv))
-        return -ENOMEM;
-
-    memset(vclk->lut, 0, g3d_lut_override_cap * sizeof(*vclk->lut));
-    vclk->num_rates = manual_lv;
-    vclk->max_freq = g3d_manual_ratevolt[0].rate;
-    vclk->min_freq = g3d_manual_ratevolt[manual_lv - 1].rate;
-
-    for (size_t lv = 0; lv < manual_lv; lv++) {
-        unsigned int rate = g3d_manual_ratevolt[lv].rate;
-        unsigned int volt = g3d_manual_ratevolt[lv].volt;
-
-        new_rv->table[lv].rate = rate;
-        new_rv->table[lv].volt = volt;
-
-        vclk->lut[lv].rate = rate;
-
-        size_t src_lv = g3d_find_closest_lv(old_rv, old_lv, rate);
-
-        for (size_t k = 0; k < members; k++) {
-            unsigned int p = old_param->val[src_lv * members + k];
-            new_param->val[lv * members + k] = p;
-            vclk->lut[lv].params[k] = p;
-        }
-    }
-
-    hdr->num_of_lv = manual_lv;
-    return 0;
-}
-
-static size_t min_size(size_t a, size_t b) { return a < b ? a : b; }
-
 static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
                                   size_t old_lv, unsigned int target_rate) {
     size_t best = 0;
+    size_t j;
     u64 best_diff = ~0ULL;
 
-    for (size_t j = 0; j < old_lv; j++) {
+    for (j = 0; j < old_lv; j++) {
         u64 r = old_rv->table[j].rate;
         u64 diff = (r > target_rate) ? (r - target_rate) : (target_rate - r);
         if (diff < best_diff) {
@@ -95,6 +52,105 @@ static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
         }
     }
     return best;
+}
+
+static int g3d_ensure_lut(struct vclk *vclk, size_t manual_lv) {
+    size_t i;
+
+    if (!vclk || !manual_lv || !vclk->num_list)
+        return -EINVAL;
+
+    if (!g3d_lut_override || g3d_lut_override_cap < manual_lv) {
+        struct vclk_lut *new_lut;
+
+        if (g3d_lut_override) {
+            for (i = 0; i < g3d_lut_override_cap; i++)
+                kfree(g3d_lut_override[i].params);
+            kfree(g3d_lut_override);
+        }
+
+        new_lut = kcalloc(manual_lv, sizeof(*new_lut), GFP_KERNEL);
+        if (!new_lut)
+            return -ENOMEM;
+
+        g3d_lut_override = new_lut;
+        g3d_lut_override_cap = manual_lv;
+
+        for (i = 0; i < g3d_lut_override_cap; i++) {
+            new_lut[i].params = kcalloc(vclk->num_list, sizeof(int), GFP_KERNEL);
+            if (!new_lut[i].params)
+                goto err_alloc;
+        }
+    }
+
+    for (i = 0; i < g3d_lut_override_cap; i++)
+        memset(g3d_lut_override[i].params, 0,
+               sizeof(int) * vclk->num_list);
+
+    vclk->lut = g3d_lut_override;
+    return 0;
+
+err_alloc:
+    while (i--)
+        kfree(g3d_lut_override[i].params);
+    kfree(g3d_lut_override);
+    g3d_lut_override = NULL;
+    g3d_lut_override_cap = 0;
+    return -ENOMEM;
+}
+
+static int patch_tables(volatile struct fvmap_header *hdr,
+                        const struct rate_volt_header *old_rv,
+                        const struct dvfs_table *old_param,
+                        struct rate_volt_header *new_rv,
+                        struct dvfs_table *new_param, struct vclk *vclk,
+                        size_t old_lv) {
+    size_t manual_lv = ARRAY_SIZE(g3d_manual_ratevolt);
+    size_t members = hdr->num_of_members;
+    size_t lv, k;
+
+    if (!vclk)
+        return -EINVAL;
+
+    if (g3d_ensure_lut(vclk, manual_lv))
+        return -ENOMEM;
+
+    vclk->num_rates = manual_lv;
+    vclk->max_freq = g3d_manual_ratevolt[0].rate;
+    vclk->min_freq = g3d_manual_ratevolt[manual_lv - 1].rate;
+
+    for (lv = 0; lv < manual_lv; lv++) {
+        size_t src_lv;
+        unsigned int rate = g3d_manual_ratevolt[lv].rate;
+        unsigned int volt = g3d_manual_ratevolt[lv].volt;
+
+        new_rv->table[lv].rate = rate;
+        new_rv->table[lv].volt = volt;
+
+        vclk->lut[lv].rate = rate;
+
+        if (lv < old_lv)
+            src_lv = g3d_find_closest_lv(old_rv, old_lv, rate);
+        else if (lv)
+            src_lv = lv - 1;
+        else
+            src_lv = 0;
+
+        for (k = 0; k < members; k++) {
+            unsigned int p;
+
+            if (lv < old_lv)
+                p = old_param->val[src_lv * members + k];
+            else
+                p = new_param->val[(lv - 1) * members + k];
+
+            new_param->val[lv * members + k] = p;
+            vclk->lut[lv].params[k] = p;
+        }
+    }
+
+    hdr->num_of_lv = manual_lv;
+    return 0;
 }
 
 static int __init get_mif_volt(char *str) {
@@ -453,6 +509,8 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
     unsigned int blk_idx, param_idx;
     int size, margin;
     int i, j, k;
+    bool is_g3d;
+    size_t old_lv;
 
     fvmap_header = map_base;
     header = sram_base;
@@ -484,12 +542,11 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             continue;
 
         // expand listed size
-        bool is_g3d = !strcmp(vclk->name, "dvfs_g3d");
-        size_t old_lv = fvmap_header[i].num_of_lv;
+        is_g3d = !strcmp(vclk->name, "dvfs_g3d");
+        old_lv = fvmap_header[i].num_of_lv;
 
         if (is_g3d) {
-            fvmap_header[i].num_of_lv =
-                min_size(old_lv, ARRAY_SIZE(g3d_manual_ratevolt));
+            fvmap_header[i].num_of_lv = ARRAY_SIZE(g3d_manual_ratevolt);
         }
 
         pr_info("dvfs_type : %s - id : %x\n", vclk->name,
@@ -500,7 +557,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         old = sram_base + fvmap_header[i].o_ratevolt;
         new = map_base + fvmap_header[i].o_ratevolt;
 
-        check_percent_margin(old, fvmap_header[i].num_of_lv);
+        check_percent_margin(old, old_lv);
 
         margin = init_margin_table[vclk->margin_id];
         if (margin)
