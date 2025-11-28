@@ -60,6 +60,35 @@ fvmap_ratevolt_capacity(const volatile struct fvmap_header *header) {
     return capacity;
 }
 
+static int vclk_ensure_lut(struct vclk *vclk, size_t need)
+{
+    struct vclk_lut *new_lut;
+
+    if (!vclk)
+        return -EINVAL;
+
+    if (vclk->lut_capacity >= need)
+        return 0;
+
+    new_lut = kcalloc(need, sizeof(*new_lut), GFP_KERNEL);
+    if (!new_lut)
+        return -ENOMEM;
+
+    /* preserve existing content if any */
+    if (vclk->lut && vclk->lut_capacity)
+        memcpy(new_lut, vclk->lut, vclk->lut_capacity * sizeof(*new_lut));
+
+    /* only free if we own the old allocation */
+    if (vclk->lut_dynamic)
+        kfree(vclk->lut);
+
+    vclk->lut = new_lut;
+    vclk->lut_capacity = need;
+    vclk->lut_dynamic = true;
+
+    return 0;
+}
+
 static size_t
 fvmap_calculate_initial_usage(const volatile struct fvmap_header *header,
                               int num_of_vclks) {
@@ -84,59 +113,10 @@ fvmap_calculate_initial_usage(const volatile struct fvmap_header *header,
     return ALIGN(max_offset, sizeof(u32));
 }
 
-static int fvmap_expand_gpu_lut(struct vclk *vclk, size_t manual_count) {
-    struct vclk_lut *new_lut;
-    size_t idx, old_count;
-
-    if (!vclk || !vclk->lut)
-        return -EINVAL;
-
-    old_count = vclk->num_rates;
-    if (manual_count <= old_count)
-        return 0;
-
-    new_lut = kcalloc(manual_count, sizeof(*new_lut), GFP_KERNEL);
-    if (!new_lut)
-        return -ENOMEM;
-
-    for (idx = 0; idx < manual_count; idx++) {
-        new_lut[idx].params =
-            kcalloc(vclk->num_list, sizeof(*new_lut[idx].params), GFP_KERNEL);
-        if (!new_lut[idx].params)
-            goto err_free;
-
-        if (idx < old_count) {
-            new_lut[idx].rate = vclk->lut[idx].rate;
-            memcpy(new_lut[idx].params, vclk->lut[idx].params,
-                   sizeof(unsigned int) * vclk->num_list);
-        } else if (old_count) {
-            new_lut[idx].rate = vclk->lut[old_count - 1].rate;
-            memcpy(new_lut[idx].params, vclk->lut[old_count - 1].params,
-                   sizeof(unsigned int) * vclk->num_list);
-        }
-    }
-
-    for (idx = 0; idx < old_count; idx++)
-        kfree(vclk->lut[idx].params);
-
-    kfree(vclk->lut);
-
-    vclk->lut = new_lut;
-    vclk->num_rates = manual_count;
-
-    return 0;
-
-err_free:
-    while (idx--)
-        kfree(new_lut[idx].params);
-    kfree(new_lut);
-
-    return -ENOMEM;
-}
-
 static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
                                          struct rate_volt_header *rate_table,
-                                         struct vclk *vclk) {
+                                         struct vclk *vclk)
+{
     size_t manual_count = ARRAY_SIZE(g3d_manual_ratevolt);
     size_t capacity = fvmap_ratevolt_capacity(header);
     size_t idx;
@@ -150,23 +130,26 @@ static void fvmap_apply_gpu_manual_table(volatile struct fvmap_header *header,
     if (!manual_count)
         return;
 
+    /* write manual rate/volt table into the FVMap */
     memcpy(rate_table->table, g3d_manual_ratevolt,
            manual_count * sizeof(struct rate_volt));
     header->num_of_lv = manual_count;
 
-    if (vclk && vclk->lut && vclk->num_rates < manual_count) {
-        int ret = fvmap_expand_gpu_lut(vclk, manual_count);
-
-        if (ret) {
-            pr_err("  G3D: failed to expand LUT to %zu entries (%d)\n",
-                   manual_count, ret);
-            manual_count = min(manual_count, (size_t)vclk->num_rates);
-            header->num_of_lv = manual_count;
-        }
-    }
-
     if (vclk && vclk->lut) {
-        for (idx = 0; idx < manual_count && idx < vclk->num_rates; idx++)
+        /* Make sure LUT storage is large enough for manual_count entries */
+        if (vclk_ensure_lut(vclk, manual_count)) {
+            pr_err("  G3D: failed to grow LUT to %zu entries, keeping %u\n",
+                   manual_count, vclk->lut_capacity);
+            manual_count = min(manual_count, (size_t)vclk->lut_capacity);
+        }
+
+        /* clear whole LUT (your requested “clear the array”) */
+        memset(vclk->lut, 0, vclk->lut_capacity * sizeof(*vclk->lut));
+
+        vclk->num_rates = manual_count;
+
+        /* populate LUT rates from the custom table */
+        for (idx = 0; idx < manual_count; idx++)
             vclk->lut[idx].rate = g3d_manual_ratevolt[idx].rate;
     }
 }
@@ -620,12 +603,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
         pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
 
-        if (!strcmp(vclk->name, "dvfs_g3d")) {
-            pr_info("  G3D init level : %d\n", fvmap_header[i].init_lv);
-            pr_info("  G3D volt_offset_percent : %d\n", volt_offset_percent);
-            pr_info("  Using manual G3D rate/volt table\n");
-        }
-
         old = sram_base + header[i].o_ratevolt;
         new = map_base + fvmap_header[i].o_ratevolt;
 
@@ -706,7 +683,8 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
 
                 for (j = fw_lv; j < manual_lv; j++) {
                     memcpy(&new_param->val[stride * j],
-                           &new_param->val[stride * (fw_lv - 1)], stride);
+       &new_param->val[stride * (fw_lv - 1)],
+       stride * sizeof(new_param->val[0]));
                 }
             }
         }
