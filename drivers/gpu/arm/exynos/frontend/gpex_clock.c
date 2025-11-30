@@ -37,63 +37,92 @@
 
 static struct _clock_info clk_info;
 
+static void gpex_clock_log_table_state(const char *tag)
+{
+        int i;
+
+        for (i = 0; i < clk_info.table_size; i++)
+                GPU_LOG(MALI_EXYNOS_DEBUG, "%s: idx=%d freq=%d volt=%d\n", tag, i,
+                        clk_info.table[i].clock, clk_info.table[i].voltage);
+}
+
 int gpex_clock_get_boot_clock(void)
 {
-	return clk_info.boot_clock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: boot_clock=%d\n", __func__, clk_info.boot_clock);
+        return clk_info.boot_clock;
 }
 int gpex_clock_get_max_clock(void)
 {
-	return clk_info.gpu_max_clock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: gpu_max_clock=%d\n", __func__,
+                clk_info.gpu_max_clock);
+        return clk_info.gpu_max_clock;
 }
 int gpex_clock_get_max_clock_limit(void)
 {
-	return clk_info.gpu_max_clock_limit;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: max_clock_limit=%d\n", __func__,
+                clk_info.gpu_max_clock_limit);
+        return clk_info.gpu_max_clock_limit;
 }
 int gpex_clock_get_min_clock(void)
 {
-	return clk_info.gpu_min_clock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: gpu_min_clock=%d\n", __func__,
+                clk_info.gpu_min_clock);
+        return clk_info.gpu_min_clock;
 }
 int gpex_clock_get_cur_clock(void)
 {
-	return clk_info.cur_clock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: cur_clock=%d\n", __func__, clk_info.cur_clock);
+        return clk_info.cur_clock;
 }
 int gpex_clock_get_max_lock(void)
 {
-	return clk_info.max_lock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: max_lock=%d\n", __func__, clk_info.max_lock);
+        return clk_info.max_lock;
 }
 int gpex_clock_get_min_lock(void)
 {
-	return clk_info.min_lock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: min_lock=%d\n", __func__, clk_info.min_lock);
+        return clk_info.min_lock;
 }
 int gpex_clock_get_clock(int level)
 {
-	return clk_info.table[level].clock;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: level=%d clock=%d\n", __func__, level,
+                clk_info.table[level].clock);
+        return clk_info.table[level].clock;
 }
 u64 gpex_clock_get_time_busy(int level)
 {
-	return clk_info.table[level].time_busy;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: level=%d time_busy=%llu\n", __func__, level,
+                clk_info.table[level].time_busy);
+        return clk_info.table[level].time_busy;
 }
 /*******************************************
  * static helper functions
  ******************************************/
 static int gpex_clock_update_config_data_from_dt(void)
 {
-	int ret = 0;
-	struct freq_volt *fv_array;
-	int asv_lv_num;
-	int i, j;
+        int ret = 0;
+        struct freq_volt *fv_array;
+        int asv_lv_num;
+        int i, j;
 
-	clk_info.gpu_max_clock = gpexbe_devicetree_get_int(gpu_max_clock);
-	clk_info.gpu_min_clock = gpexbe_devicetree_get_int(gpu_min_clock);
-	clk_info.boot_clock = gpexbe_clock_get_boot_freq();
-	clk_info.gpu_max_clock_limit = gpexbe_clock_get_max_freq();
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: updating clock config from DT\n", __func__);
+
+        clk_info.gpu_max_clock = gpexbe_devicetree_get_int(gpu_max_clock);
+        clk_info.gpu_min_clock = gpexbe_devicetree_get_int(gpu_min_clock);
+        clk_info.boot_clock = gpexbe_clock_get_boot_freq();
+        clk_info.gpu_max_clock_limit = gpexbe_clock_get_max_freq();
+
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: limits min=%d max=%d boot=%d max_limit=%d\n",
+                __func__, clk_info.gpu_min_clock, clk_info.gpu_max_clock,
+                clk_info.boot_clock, clk_info.gpu_max_clock_limit);
 
 	/* TODO: rename the table_size variable to something more sensible like  row_cnt */
 	clk_info.table_size = gpexbe_devicetree_get_int(gpu_dvfs_table_size.row);
 	clk_info.table = kcalloc(clk_info.table_size, sizeof(gpu_clock_info), GFP_KERNEL);
 
 	asv_lv_num = gpexbe_clock_get_level_num();
-	fv_array = kcalloc(asv_lv_num, sizeof(*fv_array), GFP_KERNEL);
+        fv_array = kcalloc(asv_lv_num, sizeof(*fv_array), GFP_KERNEL);
 
 	if (!fv_array)
 		return -ENOMEM;
@@ -117,9 +146,11 @@ static int gpex_clock_update_config_data_from_dt(void)
 		}
 	}
 
-	kfree(fv_array);
+        kfree(fv_array);
 
-	return 0;
+        gpex_clock_log_table_state("gpex_clock_init_table");
+
+        return 0;
 }
 
 static int set_clock_using_calapi(int clk)
@@ -128,30 +159,36 @@ static int set_clock_using_calapi(int clk)
 
 	gpex_pm_lock();
 
-	if (!gpex_pm_get_status(false)) {
-		ret = -1;
-		GPU_LOG(MALI_EXYNOS_INFO, "%s: can't set clock in the power-off state!\n",
-			__func__);
-		goto err;
+        if (!gpex_pm_get_status(false)) {
+                ret = -1;
+                GPU_LOG(MALI_EXYNOS_INFO, "%s: can't set clock in the power-off state!\n",
+                        __func__);
+                goto err;
 	}
 
-	if (clk == clk_info.cur_clock) {
-		ret = 0;
-		GPU_LOG(MALI_EXYNOS_DEBUG, "%s: skipped to set clock for %dMhz!\n", __func__,
-			clk_info.cur_clock);
+        if (clk == clk_info.cur_clock) {
+                ret = 0;
+                GPU_LOG(MALI_EXYNOS_DEBUG, "%s: skipped to set clock for %dMhz!\n", __func__,
+                        clk_info.cur_clock);
 
 		gpex_pm_unlock();
 
 		return ret;
 	}
 
-	gpexbe_debug_dbg_snapshot_freq_in(clk_info.cur_clock, clk);
+        gpexbe_debug_dbg_snapshot_freq_in(clk_info.cur_clock, clk);
 
-	gpexbe_clock_set_rate(clk);
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: requesting clock change %d -> %d\n", __func__,
+                clk_info.cur_clock, clk);
 
-	gpexbe_debug_dbg_snapshot_freq_out(clk_info.cur_clock, clk);
+        gpexbe_clock_set_rate(clk);
 
-	clk_info.cur_clock = gpexbe_clock_get_rate();
+        gpexbe_debug_dbg_snapshot_freq_out(clk_info.cur_clock, clk);
+
+        clk_info.cur_clock = gpexbe_clock_get_rate();
+
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: applied clock %d (requested %d)\n", __func__,
+                clk_info.cur_clock, clk);
 
 	GPU_LOG_DETAILED(MALI_EXYNOS_DEBUG, LSI_CLOCK_VALUE, clk, clk_info.cur_clock,
 			 "clock set: %d, clock get: %d\n", clk, clk_info.cur_clock);
@@ -164,33 +201,49 @@ err:
 
 int gpex_get_valid_gpu_clock(int clock, bool is_round_up)
 {
-	int i, min_clock_idx, max_clock_idx;
+        int i, min_clock_idx, max_clock_idx;
 
-	/* Zero Value for Unlock*/
-	if (clock == 0)
-		return 0;
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: validating clock=%d round_up=%d\n", __func__, clock,
+                is_round_up);
+
+        /* Zero Value for Unlock*/
+        if (clock == 0)
+                return 0;
 
 	min_clock_idx = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
 	max_clock_idx = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
 
-	if ((clock - gpex_clock_get_min_clock()) < 0)
-		return clk_info.table[min_clock_idx].clock;
+        if ((clock - gpex_clock_get_min_clock()) < 0) {
+                GPU_LOG(MALI_EXYNOS_DEBUG, "%s: clamped to min idx=%d clock=%d\n", __func__,
+                        min_clock_idx, clk_info.table[min_clock_idx].clock);
+                return clk_info.table[min_clock_idx].clock;
+        }
 
 	if (is_round_up) {
 		/* Round Up if min lock sequence */
 		/* ex) invalid input 472Mhz -> valid min lock 400Mhz?500Mhz? -> min lock = 500Mhz */
 		for (i = min_clock_idx; i >= max_clock_idx; i--)
-			if (clock - (int)(clk_info.table[i].clock) <= 0)
-				return clk_info.table[i].clock;
-	} else {
-		/* Round Down if max lock sequence. */
-		/* ex) invalid input 472Mhz -> valid max lock 400Mhz?500Mhz? -> max lock = 400Mhz */
-		for (i = max_clock_idx; i <= min_clock_idx; i++)
-			if (clock - (int)(clk_info.table[i].clock) >= 0)
-				return clk_info.table[i].clock;
-	}
+                        if (clock - (int)(clk_info.table[i].clock) <= 0) {
+                                GPU_LOG(MALI_EXYNOS_DEBUG,
+                                        "%s: round up -> idx=%d clock=%d\n", __func__, i,
+                                        clk_info.table[i].clock);
+                                return clk_info.table[i].clock;
+                        }
+        } else {
+                /* Round Down if max lock sequence. */
+                /* ex) invalid input 472Mhz -> valid max lock 400Mhz?500Mhz? -> max lock = 400Mhz */
+                for (i = max_clock_idx; i <= min_clock_idx; i++)
+                        if (clock - (int)(clk_info.table[i].clock) >= 0) {
+                                GPU_LOG(MALI_EXYNOS_DEBUG,
+                                        "%s: round down -> idx=%d clock=%d\n", __func__, i,
+                                        clk_info.table[i].clock);
+                                return clk_info.table[i].clock;
+                        }
+        }
 
-	return -1;
+        GPU_LOG(MALI_EXYNOS_ERROR, "%s: unable to find valid clock for %d\n", __func__, clock);
+
+        return -1;
 }
 
 int gpex_clock_update_time_in_state(int clock)
@@ -266,14 +319,17 @@ static int gpex_clock_set_helper(int clock)
 
 int gpex_clock_init_time_in_state(void)
 {
-	int i;
-	int max_clk_idx = gpex_clock_get_table_idx(clk_info.gpu_max_clock);
-	int min_clk_idx = gpex_clock_get_table_idx(clk_info.gpu_min_clock);
+        int i;
+        int max_clk_idx = gpex_clock_get_table_idx(clk_info.gpu_max_clock);
+        int min_clk_idx = gpex_clock_get_table_idx(clk_info.gpu_min_clock);
 
-	for (i = max_clk_idx; i <= min_clk_idx; i++) {
-		clk_info.table[i].time = 0;
-		clk_info.table[i].time_busy = 0;
-	}
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: resetting time stats (%d -> %d)\n", __func__, max_clk_idx,
+                min_clk_idx);
+
+        for (i = max_clk_idx; i <= min_clk_idx; i++) {
+                clk_info.table[i].time = 0;
+                clk_info.table[i].time_busy = 0;
+        }
 
 	return 0;
 }
@@ -339,22 +395,31 @@ void gpex_clock_term(void)
 
 int gpex_clock_get_table_idx(int clock)
 {
-	int i;
+        int i;
 
-	if (clock < clk_info.gpu_min_clock)
-		return -1;
+        if (clock < clk_info.gpu_min_clock)
+                return -1;
 
-	for (i = 0; i < clk_info.table_size; i++) {
-		if (clk_info.table[i].clock == clock)
-			return i;
-	}
+        for (i = 0; i < clk_info.table_size; i++) {
+                if (clk_info.table[i].clock == clock)
+                        goto out;
+        }
 
-	return -1;
+        i = -1;
+
+out:
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: clock=%d idx=%d\n", __func__, clock, i);
+
+        return i;
 }
 
 int gpex_clock_get_clock_slow(void)
 {
-	return gpexbe_clock_get_rate();
+        int clk = gpexbe_clock_get_rate();
+
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: slow path clock=%d\n", __func__, clk);
+
+        return clk;
 }
 
 int gpex_clock_set(int clk)
@@ -377,13 +442,16 @@ int gpex_clock_set(int clk)
 		return 0;
 	}
 
-	target_clk = gpu_check_target_clock(clk);
-	if (target_clk < 0) {
-		mutex_unlock(&clk_info.clock_lock);
-		GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock error (source %d, target %d)\n",
-			__func__, clk, target_clk);
-		return -1;
-	}
+        target_clk = gpu_check_target_clock(clk);
+        if (target_clk < 0) {
+                mutex_unlock(&clk_info.clock_lock);
+                GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock error (source %d, target %d)\n",
+                        __func__, clk, target_clk);
+                return -1;
+        }
+
+        GPU_LOG(MALI_EXYNOS_DEBUG, "%s: target clock selected %d (requested %d)\n", __func__,
+                target_clk, clk);
 
 	gpex_pm_lock();
 
@@ -570,12 +638,15 @@ void gpex_clock_mutex_unlock(void)
 
 int gpex_clock_get_voltage(int clk)
 {
-	int idx = gpex_clock_get_table_idx(clk);
+        int idx = gpex_clock_get_table_idx(clk);
 
-	if (idx >= 0 && idx < clk_info.table_size)
-		return clk_info.table[idx].voltage;
-	else {
-		/* TODO: print error msg */
-		return -EINVAL;
-	}
+        if (idx >= 0 && idx < clk_info.table_size) {
+                GPU_LOG(MALI_EXYNOS_DEBUG, "%s: clk=%d voltage=%d (idx=%d)\n", __func__, clk,
+                        clk_info.table[idx].voltage, idx);
+                return clk_info.table[idx].voltage;
+        }
+
+        GPU_LOG(MALI_EXYNOS_ERROR, "%s: invalid voltage lookup for clk=%d (idx=%d)\n",
+                __func__, clk, idx);
+        return -EINVAL;
 }
