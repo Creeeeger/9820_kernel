@@ -263,10 +263,10 @@ static void read_from_dt(void)
 	gpexbe_devicetree_read_u32("gpu_debug_level", &dt_info.gpu_debug_level);
 
 	/* HCM */
-	gpexbe_devicetree_read_u32("gpu_heavy_compute_cpu0_min_clock;",
-				   &dt_info.gpu_heavy_compute_cpu0_min_clock);
-	gpexbe_devicetree_read_u32("gpu_heavy_compute_vk_cpu0_min_clock;",
-				   &dt_info.gpu_heavy_compute_vk_cpu0_min_clock);
+        gpexbe_devicetree_read_u32("gpu_heavy_compute_cpu0_min_clock",
+                                   &dt_info.gpu_heavy_compute_cpu0_min_clock);
+        gpexbe_devicetree_read_u32("gpu_heavy_compute_vk_cpu0_min_clock",
+                                   &dt_info.gpu_heavy_compute_vk_cpu0_min_clock);
 
 	/* TSG */
 	gpexbe_devicetree_read_u32("gpu_weight_table_idx_0", &dt_info.gpu_weight_table_idx_0);
