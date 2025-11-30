@@ -25,6 +25,7 @@
 #include <gpexbe_clock.h>
 #include <gpex_utils.h>
 #include <gpex_debug.h>
+#include <gpexbe_pm.h>
 
 struct _clock_backend_info {
 	int boot_clock;
@@ -33,6 +34,7 @@ struct _clock_backend_info {
 
 static struct _clock_backend_info pm_info;
 static unsigned int cal_id;
+static int cached_clock;
 
 int gpexbe_clock_get_level_num(void)
 {
@@ -78,6 +80,8 @@ int gpexbe_clock_set_rate(int clk)
 	gpex_debug_record_prev_data(HIST_CLOCK, gpexbe_clock_get_rate());
 
 	ret = cal_dfs_set_rate(cal_id, clk);
+	if (!ret)
+	cached_clock = clk;
 
 	gpex_debug_record_time(HIST_CLOCK);
 	gpex_debug_record_code(HIST_CLOCK, ret);
@@ -91,7 +95,17 @@ int gpexbe_clock_set_rate(int clk)
 
 int gpexbe_clock_get_rate(void)
 {
-	return cal_dfs_get_rate(cal_id);
+	int rate;
+
+	if (gpexbe_pm_get_status())
+		rate = cal_dfs_get_rate(cal_id);
+	else
+		rate = cached_clock;
+	
+	if (!rate)
+		rate = cached_clock;
+
+	return rate;
 }
 
 int gpexbe_clock_init(void)
@@ -104,6 +118,7 @@ int gpexbe_clock_init(void)
 	}
 
 	pm_info.boot_clock = cal_dfs_get_boot_freq(cal_id);
+	cached_clock = pm_info.boot_clock;
 	pm_info.max_clock_limit = (int)cal_dfs_get_max_freq(cal_id);
 
 	gpex_utils_get_exynos_context()->pm_info = &pm_info;
