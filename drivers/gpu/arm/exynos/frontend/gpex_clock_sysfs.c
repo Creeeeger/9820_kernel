@@ -69,6 +69,7 @@ GPEX_STATIC ssize_t set_clock(const char *buf, size_t count)
 	return count;
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_clock)
+CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_clock)
 
 GPEX_STATIC int gpu_get_asv_table(char *buf, size_t buf_size)
 {

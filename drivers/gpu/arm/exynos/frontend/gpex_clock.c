@@ -82,6 +82,7 @@ static int gpex_clock_update_config_data_from_dt(void)
 	struct freq_volt *fv_array;
 	int asv_lv_num;
 	int i, j;
+	gpu_clock_info temp;
 
 	clk_info.gpu_max_clock = gpexbe_devicetree_get_int(gpu_max_clock);
 	clk_info.gpu_min_clock = gpexbe_devicetree_get_int(gpu_min_clock);
@@ -118,6 +119,15 @@ static int gpex_clock_update_config_data_from_dt(void)
 	}
 
 	kfree(fv_array);
+
+	if (clk_info.table_size > 1 &&
+	    clk_info.table[0].clock < clk_info.table[clk_info.table_size - 1].clock) {
+		for (i = 0; i < clk_info.table_size / 2; i++) {
+			temp = clk_info.table[i];
+			clk_info.table[i] = clk_info.table[clk_info.table_size - 1 - i];
+			clk_info.table[clk_info.table_size - 1 - i] = temp;
+		}
+	}
 
 	return 0;
 }
@@ -399,8 +409,7 @@ int gpex_clock_set(int clk)
 
 	mutex_unlock(&clk_info.clock_lock);
 
-	GPU_LOG(MALI_EXYNOS_DEBUG, "clk[%d -> %d]\n", prev_clk, target_clk);
-
+	(void)prev_clk;
 	return ret;
 }
 
