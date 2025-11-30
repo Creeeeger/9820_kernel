@@ -254,7 +254,39 @@ static ssize_t dummy_job_wa_info_show(struct device * const dev,
 	return err;
 }
 
-static DEVICE_ATTR_RO(dummy_job_wa_info);
+static ssize_t dummy_job_wa_info_store(struct device *const dev,
+		struct device_attribute *const attr, const char *const buf,
+		size_t const count)
+{
+	struct kbase_device *const kbdev = dev_get_drvdata(dev);
+	unsigned int slot;
+	u64 flags;
+	int parsed;
+
+	if (!kbdev || !kbdev->dummy_job_wa.ctx)
+		return -ENODEV;
+
+	parsed = sscanf(buf, "%u %llx", &slot, &flags);
+	if (parsed < 1)
+		return -EINVAL;
+
+	if (parsed < 2)
+		flags = kbdev->dummy_job_wa.flags;
+
+	if (flags & ~KBASE_DUMMY_JOB_WA_FLAGS)
+		return -EINVAL;
+
+	kbdev->dummy_job_wa.slot = slot;
+	kbdev->dummy_job_wa.flags = flags;
+
+	dev_info(kbdev->dev,
+		"dummy_job_wa_info updated: slot %u flags %llx\n",
+		slot, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(dummy_job_wa_info);
 
 static bool wa_blob_load_needed(struct kbase_device *kbdev)
 {

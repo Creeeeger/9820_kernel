@@ -74,9 +74,9 @@ static unsigned long get_voltage(struct kbase_device *kbdev, unsigned long freq)
 }
 
 void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
-	u64 *core_mask, unsigned long *freqs, unsigned long *volts)
+        u64 *core_mask, unsigned long *freqs, unsigned long *volts)
 {
-	unsigned int i;
+        unsigned int i;
 
 	for (i = 0; i < kbdev->num_opps; i++) {
 		if (kbdev->devfreq_table[i].opp_freq == freq) {
@@ -91,8 +91,28 @@ void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
 			}
 
 			break;
-		}
-	}
+        }
+}
+
+static void kbase_devfreq_log_target(struct kbase_device *kbdev,
+		unsigned long nominal_freq, u64 core_mask,
+		unsigned long *freqs, unsigned long *volts)
+{
+	unsigned int i;
+
+	dev_info(kbdev->dev, "devfreq target freq=%lu core_mask=0x%llx\n",
+		nominal_freq, core_mask);
+
+	for (i = 0; i < kbdev->nr_clocks; i++)
+		dev_info(kbdev->dev, "  clock[%u]=%lu Hz\n", i, freqs[i]);
+
+#if IS_ENABLED(CONFIG_REGULATOR)
+	for (i = 0; i < kbdev->nr_regulators; i++)
+		dev_info(kbdev->dev, "  voltage[%u]=%lu uV\n", i, volts[i]);
+#else
+	(void)volts;
+#endif
+}
 
 	/* If failed to find OPP, return all cores enabled
 	 * and nominal frequency and the corresponding voltage.
@@ -149,7 +169,9 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	}
 
 	kbase_devfreq_opp_translate(kbdev, nominal_freq, &core_mask,
-				    freqs, volts);
+			freqs, volts);
+
+	kbase_devfreq_log_target(kbdev, nominal_freq, core_mask, freqs, volts);
 
 #if IS_ENABLED(CONFIG_REGULATOR)
 	/* Regulators and clocks work in pairs: every clock has a regulator,
@@ -494,39 +516,47 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 			}
 		}
 
-		if (!core_mask) {
-			dev_err(kbdev->dev, "OPP has invalid core mask of 0\n");
-			return -ENODEV;
-		}
+        if (!core_mask) {
+                dev_err(kbdev->dev, "OPP has invalid core mask of 0\n");
+                return -ENODEV;
+        }
 
-		kbdev->devfreq_table[i].opp_freq = opp_freq;
-		kbdev->devfreq_table[i].core_mask = core_mask;
-		if (kbdev->nr_clocks > 0) {
-			int j;
+        kbdev->devfreq_table[i].opp_freq = opp_freq;
+        kbdev->devfreq_table[i].core_mask = core_mask;
+        if (kbdev->nr_clocks > 0) {
+                int j;
 
-			for (j = 0; j < kbdev->nr_clocks; j++)
-				kbdev->devfreq_table[i].real_freqs[j] =
-					real_freqs[j];
-		}
+                for (j = 0; j < kbdev->nr_clocks; j++)
+                        kbdev->devfreq_table[i].real_freqs[j] =
+                                        real_freqs[j];
+        }
 #if IS_ENABLED(CONFIG_REGULATOR)
-		if (kbdev->nr_regulators > 0) {
-			int j;
+        if (kbdev->nr_regulators > 0) {
+                int j;
 
-			for (j = 0; j < kbdev->nr_regulators; j++)
-				kbdev->devfreq_table[i].opp_volts[j] =
-						opp_volts[j];
-		}
+                for (j = 0; j < kbdev->nr_regulators; j++)
+                        kbdev->devfreq_table[i].opp_volts[j] =
+                                        opp_volts[j];
+        }
 #endif
 
-		dev_info(kbdev->dev, "OPP %d : opp_freq=%llu core_mask=%llx\n",
-				i, opp_freq, core_mask);
+        dev_info(kbdev->dev, "OPP %d : opp_freq=%llu core_mask=%llx\n",
+                        i, opp_freq, core_mask);
+        for (j = 0; j < kbdev->nr_clocks; j++)
+                dev_info(kbdev->dev, "\tOPP %d clock[%d]=%llu Hz\n",
+                                i, j, kbdev->devfreq_table[i].real_freqs[j]);
+#if IS_ENABLED(CONFIG_REGULATOR)
+        for (j = 0; j < kbdev->nr_regulators; j++)
+                dev_info(kbdev->dev, "\tOPP %d voltage[%d]=%u uV\n",
+                                i, j, kbdev->devfreq_table[i].opp_volts[j]);
+#endif
 
-		i++;
-	}
+        i++;
+}
 
-	kbdev->num_opps = i;
+        kbdev->num_opps = i;
 
-	return 0;
+        return 0;
 #endif /* CONFIG_OF */
 }
 

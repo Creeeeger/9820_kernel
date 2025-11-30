@@ -31,6 +31,7 @@
 #include <ipa/mali_kbase_ipa_debugfs.h>
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
+#include <linux/string.h>
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 #include "backend/gpu/mali_kbase_model_linux.h"
 #include <backend/gpu/mali_kbase_model_dummy.h>
@@ -3135,6 +3136,9 @@ static ssize_t debug_command_store(struct device *dev, struct device_attribute *
 static DEVICE_ATTR_RW(debug_command);
 #endif /* CONFIG_MALI_DEBUG */
 
+static DEFINE_MUTEX(gpuinfo_override_lock);
+static char gpuinfo_override[64];
+
 /**
  * gpuinfo_show - Show callback for the gpuinfo sysfs entry.
  * @dev: The device this sysfs file is for.
@@ -3151,7 +3155,7 @@ static DEVICE_ATTR_RW(debug_command);
  * Return: The number of bytes output to @buf.
  */
 static ssize_t gpuinfo_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	static const struct gpu_product_id_name {
 		unsigned int id;
@@ -3198,10 +3202,22 @@ static ssize_t gpuinfo_show(struct device *dev,
 	unsigned int product_id, product_id_mask;
 	unsigned int i;
 	struct kbase_gpu_props *gpu_props;
+	char override_buf[sizeof(gpuinfo_override)];
+	bool has_override = false;
 
 	kbdev = to_kbase_device(dev);
 	if (!kbdev)
 		return -ENODEV;
+
+	mutex_lock(&gpuinfo_override_lock);
+	if (gpuinfo_override[0]) {
+		strlcpy(override_buf, gpuinfo_override, sizeof(override_buf));
+		has_override = true;
+	}
+	mutex_unlock(&gpuinfo_override_lock);
+
+	if (has_override)
+		return scnprintf(buf, PAGE_SIZE, "%s\n", override_buf);
 
 	gpu_props = &kbdev->gpu_props;
 	gpu_id = gpu_props->props.raw_props.gpu_id;
@@ -3245,12 +3261,44 @@ static ssize_t gpuinfo_show(struct device *dev,
 #endif /* MALI_USE_CSF */
 
 	return scnprintf(buf, PAGE_SIZE, "%s %d cores r%dp%d 0x%04X\n", product_name,
-			 kbdev->gpu_props.num_cores,
-			 (gpu_id & GPU_ID_VERSION_MAJOR) >> KBASE_GPU_ID_VERSION_MAJOR_SHIFT,
-			 (gpu_id & GPU_ID_VERSION_MINOR) >> KBASE_GPU_ID_VERSION_MINOR_SHIFT,
-			 product_id);
+			kbdev->gpu_props.num_cores,
+			(gpu_id & GPU_ID_VERSION_MAJOR) >> KBASE_GPU_ID_VERSION_MAJOR_SHIFT,
+			(gpu_id & GPU_ID_VERSION_MINOR) >> KBASE_GPU_ID_VERSION_MINOR_SHIFT,
+			product_id);
 }
-static DEVICE_ATTR_RO(gpuinfo);
+
+static ssize_t gpuinfo_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = to_kbase_device(dev);
+	size_t len;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	len = min(count, sizeof(gpuinfo_override) - 1);
+
+	mutex_lock(&gpuinfo_override_lock);
+	memset(gpuinfo_override, 0, sizeof(gpuinfo_override));
+	memcpy(gpuinfo_override, buf, len);
+
+	while (len &&
+	       (gpuinfo_override[len - 1] == '\n' || gpuinfo_override[len - 1] == '\r'))
+		gpuinfo_override[--len] = '\0';
+
+	if (!gpuinfo_override[0])
+		dev_info(kbdev->dev, "gpuinfo override cleared\n");
+	else
+		dev_info(kbdev->dev, "gpuinfo override set to '%s'\n", gpuinfo_override);
+
+	mutex_unlock(&gpuinfo_override_lock);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(gpuinfo);
+
+
 
 /**
  * dvfs_period_store - Store callback for the dvfs_period sysfs file.
