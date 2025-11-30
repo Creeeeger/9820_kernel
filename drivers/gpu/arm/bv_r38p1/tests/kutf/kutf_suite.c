@@ -1195,7 +1195,7 @@ static void __exit exit_kutf_core(void)
  */
 static int __init init_kutf_core(void)
 {
-	pr_debug("KUTF requires a kernel with debug fs support");
+	pr_info("KUTF requires a kernel with debug fs support");
 
 	return -ENODEV;
 }

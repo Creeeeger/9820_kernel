@@ -52,28 +52,28 @@ static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
     size_t j;
     u64 best_diff = ~0ULL;
 
-    pr_debug("%s: old_lv=%zu target_rate=%u\n", __func__, old_lv,
+    pr_info("%s: old_lv=%zu target_rate=%u\n", __func__, old_lv,
              target_rate);
 
     for (j = 0; j < old_lv; j++) {
         u64 r = old_rv->table[j].rate;
         u64 diff = (r > target_rate) ? (r - target_rate) : (target_rate - r);
 
-        pr_debug("%s: checking index=%zu rate=%llu diff=%llu\n", __func__, j,
+        pr_info("%s: checking index=%zu rate=%llu diff=%llu\n", __func__, j,
                  r, diff);
         if (diff < best_diff) {
             best_diff = diff;
             best = j;
         }
     }
-    pr_debug("%s: best index=%zu best_diff=%llu\n", __func__, best, best_diff);
+    pr_info("%s: best index=%zu best_diff=%llu\n", __func__, best, best_diff);
     return best;
 }
 
 static int g3d_ensure_lut(struct vclk *vclk, size_t manual_lv) {
     size_t i;
 
-    pr_debug("%s: vclk=%p manual_lv=%zu num_list=%zu override_cap=%zu\n",
+    pr_info("%s: vclk=%p manual_lv=%zu num_list=%zu override_cap=%zu\n",
              __func__, vclk, manual_lv, vclk ? vclk->num_list : 0,
              g3d_lut_override_cap);
 
@@ -101,7 +101,7 @@ static int g3d_ensure_lut(struct vclk *vclk, size_t manual_lv) {
             if (!new_lut[i].params)
                 goto err_alloc;
 
-            pr_debug("%s: allocated params for level=%zu size=%zu\n", __func__,
+            pr_info("%s: allocated params for level=%zu size=%zu\n", __func__,
                      i, vclk->num_list);
         }
     }
@@ -111,7 +111,7 @@ static int g3d_ensure_lut(struct vclk *vclk, size_t manual_lv) {
                sizeof(int) * vclk->num_list);
 
     vclk->lut = g3d_lut_override;
-    pr_debug("%s: override prepared cap=%zu\n", __func__, g3d_lut_override_cap);
+    pr_info("%s: override prepared cap=%zu\n", __func__, g3d_lut_override_cap);
     return 0;
 
 err_alloc:
@@ -120,7 +120,7 @@ err_alloc:
     kfree(g3d_lut_override);
     g3d_lut_override = NULL;
     g3d_lut_override_cap = 0;
-    pr_debug("%s: allocation failed at level=%zu\n", __func__, i);
+    pr_info("%s: allocation failed at level=%zu\n", __func__, i);
     return -ENOMEM;
 }
 
@@ -134,7 +134,7 @@ static int patch_tables(volatile struct fvmap_header *hdr,
     size_t members = hdr->num_of_members;
     size_t lv, k;
 
-    pr_debug("%s: members=%zu manual_lv=%zu old_lv=%zu\n", __func__, members,
+    pr_info("%s: members=%zu manual_lv=%zu old_lv=%zu\n", __func__, members,
              manual_lv, old_lv);
 
     if (!vclk)
@@ -147,7 +147,7 @@ static int patch_tables(volatile struct fvmap_header *hdr,
     vclk->max_freq = g3d_manual_ratevolt[0].rate;
     vclk->min_freq = g3d_manual_ratevolt[manual_lv - 1].rate;
 
-    pr_debug("%s: updated vclk rates max=%u min=%u\n", __func__, vclk->max_freq,
+    pr_info("%s: updated vclk rates max=%u min=%u\n", __func__, vclk->max_freq,
              vclk->min_freq);
 
     for (lv = 0; lv < manual_lv; lv++) {
@@ -155,7 +155,7 @@ static int patch_tables(volatile struct fvmap_header *hdr,
         unsigned int rate = g3d_manual_ratevolt[lv].rate;
         unsigned int volt = g3d_manual_ratevolt[lv].volt;
 
-        pr_debug("%s: processing lv=%zu rate=%u volt=%u\n", __func__, lv, rate,
+        pr_info("%s: processing lv=%zu rate=%u volt=%u\n", __func__, lv, rate,
                  volt);
 
         new_rv->table[lv].rate = rate;
@@ -170,7 +170,7 @@ static int patch_tables(volatile struct fvmap_header *hdr,
         else
             src_lv = 0;
 
-        pr_debug("%s: source level for lv=%zu is %zu\n", __func__, lv, src_lv);
+        pr_info("%s: source level for lv=%zu is %zu\n", __func__, lv, src_lv);
 
         for (k = 0; k < members; k++) {
             unsigned int p;
@@ -183,12 +183,12 @@ static int patch_tables(volatile struct fvmap_header *hdr,
             new_param->val[lv * members + k] = p;
             vclk->lut[lv].params[k] = p;
 
-            pr_debug("%s: lv=%zu member=%zu param=%u\n", __func__, lv, k, p);
+            pr_info("%s: lv=%zu member=%zu param=%u\n", __func__, lv, k, p);
         }
     }
 
     hdr->num_of_lv = manual_lv;
-    pr_debug("%s: patched num_of_lv=%zu\n", __func__, manual_lv);
+    pr_info("%s: patched num_of_lv=%zu\n", __func__, manual_lv);
     return 0;
 }
 
@@ -198,7 +198,7 @@ static int __init get_mif_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_MIF] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -210,7 +210,7 @@ static int __init get_int_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_INT] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -222,7 +222,7 @@ static int __init get_big_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_BIG] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -234,7 +234,7 @@ static int __init get_mid_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_MID] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -246,7 +246,7 @@ static int __init get_lit_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_LIT] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -258,7 +258,7 @@ static int __init get_g3d_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_G3D] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -270,7 +270,7 @@ static int __init get_intcam_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_INTCAM] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -282,7 +282,7 @@ static int __init get_cam_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_CAM] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -294,7 +294,7 @@ static int __init get_disp_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_DISP] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -306,7 +306,7 @@ static int __init get_g3dm_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_G3DM] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -318,7 +318,7 @@ static int __init get_cp_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_CP] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -330,7 +330,7 @@ static int __init get_fsys0_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_FSYS0] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -342,7 +342,7 @@ static int __init get_aud_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_AUD] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -354,7 +354,7 @@ static int __init get_iva_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_IVA] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -366,7 +366,7 @@ static int __init get_score_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_SCORE] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -378,7 +378,7 @@ static int __init get_npu_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_NPU] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -390,7 +390,7 @@ static int __init get_mfc_volt(char *str) {
     get_option(&str, &volt);
     init_margin_table[MARGIN_MFC] = volt;
 
-    pr_debug("%s: str=%s volt=%d\n", __func__, str, volt);
+    pr_info("%s: str=%s volt=%d\n", __func__, str, volt);
 
     return 0;
 }
@@ -402,7 +402,7 @@ static int __init get_percent_margin_volt(char *str) {
     get_option(&str, &percent);
     volt_offset_percent = percent;
 
-    pr_debug("%s: str=%s percent=%d\n", __func__, str, percent);
+    pr_info("%s: str=%s percent=%d\n", __func__, str, percent);
 
     return 0;
 }
@@ -420,14 +420,14 @@ int fvmap_set_raw_voltage_table(unsigned int id, int uV) {
     fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
     num_of_lv = fvmap_header[idx].num_of_lv;
 
-    pr_debug("%s: id=%u idx=%d num_of_lv=%d uV=%d\n", __func__, id, idx,
+    pr_info("%s: id=%u idx=%d num_of_lv=%d uV=%d\n", __func__, id, idx,
              num_of_lv, uV);
 
     for (i = 0; i < num_of_lv; i++)
-        pr_debug("%s: lv=%d before=%u", __func__, i, fv_table->table[i].volt);
+        pr_info("%s: lv=%d before=%u", __func__, i, fv_table->table[i].volt);
 
     for (i = 0; i < num_of_lv; i++) {
-        pr_debug("%s: lv=%d after=%u\n", __func__, i,
+        pr_info("%s: lv=%d after=%u\n", __func__, i,
                  fv_table->table[i].volt + uV);
         fv_table->table[i].volt += uV;
     }
@@ -450,13 +450,13 @@ int fvmap_get_voltage_table(unsigned int id, unsigned int *table) {
     fv_table = fvmap_base + fvmap_header[idx].o_ratevolt;
     num_of_lv = fvmap_header[idx].num_of_lv;
 
-    pr_debug("%s: id=%u idx=%d num_of_lv=%d\n", __func__, id, idx, num_of_lv);
+    pr_info("%s: id=%u idx=%d num_of_lv=%d\n", __func__, id, idx, num_of_lv);
 
     for (i = 0; i < num_of_lv; i++)
         table[i] = fv_table->table[i].volt;
 
     for (i = 0; i < num_of_lv; i++)
-        pr_debug("%s: lv=%d rate=%u volt=%u\n", __func__, i,
+        pr_info("%s: lv=%d rate=%u volt=%u\n", __func__, i,
                  fv_table->table[i].rate, table[i]);
 
     return num_of_lv;
@@ -475,7 +475,7 @@ int fvmap_get_raw_voltage_table(unsigned int id) {
     fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
     num_of_lv = fvmap_header[idx].num_of_lv;
 
-    pr_debug("%s: id=%u idx=%d num_of_lv=%d\n", __func__, id, idx, num_of_lv);
+    pr_info("%s: id=%u idx=%d num_of_lv=%d\n", __func__, id, idx, num_of_lv);
 
     for (i = 0; i < num_of_lv; i++)
         table[i] = fv_table->table[i].volt;
@@ -493,7 +493,7 @@ static void check_percent_margin(struct rate_volt_header *head,
     int percent_volt;
     int i;
 
-    pr_debug("%s: num_of_lv=%u volt_offset_percent=%d\n", __func__, num_of_lv,
+    pr_info("%s: num_of_lv=%u volt_offset_percent=%d\n", __func__, num_of_lv,
              volt_offset_percent);
 
     if (!volt_offset_percent)
@@ -504,7 +504,7 @@ static void check_percent_margin(struct rate_volt_header *head,
         percent_volt = org_volt * volt_offset_percent / 100;
         head->table[i].volt = org_volt + rounddown(percent_volt, STEP_UV);
 
-        pr_debug("%s: lv=%d org=%d percent=%d updated=%d\n", __func__, i,
+        pr_info("%s: lv=%d org=%d percent=%d updated=%d\n", __func__, i,
                  org_volt, percent_volt, head->table[i].volt);
     }
 }
@@ -514,12 +514,12 @@ static int get_vclk_id_from_margin_id(int margin_id) {
     int i;
     struct vclk *vclk;
 
-    pr_debug("%s: margin_id=%d size=%d\n", __func__, margin_id, size);
+    pr_info("%s: margin_id=%d size=%d\n", __func__, margin_id, size);
 
     for (i = 0; i < size; i++) {
         vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 
-        pr_debug("%s: checking index=%d name=%s margin_id=%d\n", __func__, i,
+        pr_info("%s: checking index=%d name=%s margin_id=%d\n", __func__, i,
                  vclk ? vclk->name : "NULL", vclk ? vclk->margin_id : -1);
 
         if (vclk->margin_id == margin_id)
@@ -532,7 +532,7 @@ static int get_vclk_id_from_margin_id(int margin_id) {
 #define attr_percent(margin_id, type)                                          \
     static ssize_t show_##type##_percent(                                      \
         struct kobject *kobj, struct kobj_attribute *attr, char *buf) {        \
-        pr_debug("show_%s_percent: value=%d\n", #type,                       \
+        pr_info("show_%s_percent: value=%d\n", #type,                       \
                  percent_margin_table[margin_id]);                             \
         return snprintf(buf, PAGE_SIZE, "%d\n",                                \
                         percent_margin_table[margin_id]);                      \
@@ -546,7 +546,7 @@ static int get_vclk_id_from_margin_id(int margin_id) {
         if (!sscanf(buf, "%d", &input))                                        \
             return -EINVAL;                                                    \
                                                                                \
-        pr_debug("store_%s_percent: input=%d\n", #type, input);               \
+        pr_info("store_%s_percent: input=%d\n", #type, input);               \
         if (input < -100 || input > 100)                                       \
             return -EINVAL;                                                    \
                                                                                \
@@ -555,7 +555,7 @@ static int get_vclk_id_from_margin_id(int margin_id) {
             return vclk_id;                                                    \
         percent_margin_table[margin_id] = input;                               \
         cal_dfs_set_volt_margin(vclk_id | ACPM_VCLK_TYPE, input);              \
-        pr_debug("store_%s_percent: vclk_id=%d updated=%d\n", #type, vclk_id, \
+        pr_info("store_%s_percent: vclk_id=%d updated=%d\n", #type, vclk_id, \
                  input);                                                       \
                                                                                \
         return count;                                                          \
@@ -620,13 +620,13 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
     bool is_g3d;
     size_t old_lv;
 
-    pr_debug("%s: map_base=%p sram_base=%p\n", __func__, map_base, sram_base);
+    pr_info("%s: map_base=%p sram_base=%p\n", __func__, map_base, sram_base);
 
     fvmap_header = map_base;
     header = sram_base;
 
     size = cmucal_get_list_size(ACPM_VCLK_TYPE);
-    pr_debug("%s: total size=%d\n", __func__, size);
+    pr_info("%s: total size=%d\n", __func__, size);
 
     for (i = 0; i < size; i++) {
         /* load fvmap info */
@@ -648,7 +648,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         fvmap_header[i].o_ratevolt = header[i].o_ratevolt;
         fvmap_header[i].o_tables = header[i].o_tables;
 
-        pr_debug("%s: index=%d dvfs_type=%d num_lv=%d members=%d\n", __func__,
+        pr_info("%s: index=%d dvfs_type=%d num_lv=%d members=%d\n", __func__,
                  i, fvmap_header[i].dvfs_type, fvmap_header[i].num_of_lv,
                  fvmap_header[i].num_of_members);
 
@@ -664,7 +664,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             fvmap_header[i].num_of_lv = ARRAY_SIZE(g3d_manual_ratevolt);
         }
 
-        pr_debug("%s: vclk=%s is_g3d=%d old_lv=%zu new_lv=%d\n", __func__,
+        pr_info("%s: vclk=%s is_g3d=%d old_lv=%zu new_lv=%d\n", __func__,
                  vclk->name, is_g3d, old_lv, fvmap_header[i].num_of_lv);
 
         pr_info("dvfs_type : %s - id : %x\n", vclk->name,
@@ -680,7 +680,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         margin = init_margin_table[vclk->margin_id];
         if (margin)
             cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
-        pr_debug("%s: margin_id=%d margin=%d\n", __func__, vclk->margin_id,
+        pr_info("%s: margin_id=%d margin=%d\n", __func__, vclk->margin_id,
                  margin);
 
         for (j = 0; j < fvmap_header[i].num_of_members; j++) {
@@ -710,7 +710,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             else
                 pr_info("  DVFS CMU addr:0x%x\n", member_addr);
 
-            pr_debug("%s: member=%d addr=0x%x lut_id=%d\n", __func__, j,
+            pr_info("%s: member=%d addr=0x%x lut_id=%d\n", __func__, j,
                      member_addr, vclk->list[j]);
         }
 
@@ -720,7 +720,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
                 new->table[j].rate = g3d_manual_ratevolt[j].rate;
                 new->table[j].volt = g3d_manual_ratevolt[j].volt;
-                pr_debug("%s: g3d lv=%d rate=%u volt=%u\n", __func__, j,
+                pr_info("%s: g3d lv=%d rate=%u volt=%u\n", __func__, j,
                          new->table[j].rate, new->table[j].volt);
                 pr_info("  lv g3d : [%7d], volt = %d uV (%d %%) \n",
                         new->table[j].rate, new->table[j].volt,
@@ -731,7 +731,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
             for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
                 new->table[j].rate = old->table[j].rate;
                 new->table[j].volt = old->table[j].volt;
-                pr_debug("%s: lv=%d rate=%u volt=%u\n", __func__, j,
+                pr_info("%s: lv=%d rate=%u volt=%u\n", __func__, j,
                          new->table[j].rate, new->table[j].volt);
                 pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",
                         new->table[j].rate, new->table[j].volt,
@@ -761,7 +761,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
 
                 new_param->val[param_idx] = old_param->val[param_idx];
 
-                pr_debug("%s: lv=%d member=%d param_idx=%u value=%d\n",
+                pr_info("%s: lv=%d member=%d param_idx=%u value=%d\n",
                          __func__, j, k, param_idx,
                          new_param->val[param_idx]);
 
@@ -783,7 +783,7 @@ int fvmap_init(void __iomem *sram_base) {
 
     map_base = kzalloc(FVMAP_SIZE, GFP_KERNEL);
 
-    pr_debug("%s: sram_base=%p map_base=%p size=%lu\n", __func__, sram_base,
+    pr_info("%s: sram_base=%p map_base=%p size=%lu\n", __func__, sram_base,
              map_base, FVMAP_SIZE);
 
     fvmap_base = map_base;

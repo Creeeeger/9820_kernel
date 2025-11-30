@@ -775,7 +775,7 @@ static void itmon_init(struct itmon_dev *itmon, bool enabled)
 				/* set tmout interval value */
 				__raw_writel(node[j].time_val,
 					     node[j].regs + offset + REG_TMOUT_INIT_VAL);
-				pr_debug("Exynos ITMON - %s timeout enabled\n", node[j].name);
+				pr_info("Exynos ITMON - %s timeout enabled\n", node[j].name);
 				if (node[j].tmout_frz_enabled) {
 					/* Enable freezing */
 					__raw_writel(enabled,
@@ -810,7 +810,7 @@ static void itmon_init(struct itmon_dev *itmon, bool enabled)
 					__raw_writel(1, node[j].regs + offset + REG_INT_CLR);
 				/* enable interrupt */
 				__raw_writel(enabled, node[j].regs + offset + REG_INT_MASK);
-				pr_debug("Exynos ITMON - %s error reporting enabled\n", node[j].name);
+				pr_info("Exynos ITMON - %s error reporting enabled\n", node[j].name);
 			}
 			if (node[j].hw_assert_enabled) {
 				offset = OFFSET_HW_ASSERT;

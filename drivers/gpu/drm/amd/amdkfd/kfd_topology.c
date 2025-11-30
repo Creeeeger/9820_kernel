@@ -1143,7 +1143,7 @@ int kfd_topology_add_device(struct kfd_dev *gpu)
 
 	gpu_id = kfd_generate_gpu_id(gpu);
 
-	pr_debug("Adding new GPU (ID: 0x%x) to topology\n", gpu_id);
+	pr_info("Adding new GPU (ID: 0x%x) to topology\n", gpu_id);
 
 	down_write(&topology_lock);
 	/*

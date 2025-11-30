@@ -135,13 +135,13 @@ static void *mali_kutf_mgm_integration_create_fixture(struct kutf_context *conte
 	struct kutf_mgm_fixture_data *data;
 	struct kbase_device *kbdev;
 
-	pr_debug("Finding kbase device\n");
+	pr_info("Finding kbase device\n");
 	kbdev = kbase_find_device(MINOR_FOR_FIRST_KBASE_DEV);
 	if (kbdev == NULL) {
 		kutf_test_fail(context, "Failed to find kbase device");
 		return NULL;
 	}
-	pr_debug("Creating fixture\n");
+	pr_info("Creating fixture\n");
 
 	data = kutf_mempool_alloc(&context->fixture_pool, sizeof(struct kutf_mgm_fixture_data));
 	if (!data)
@@ -149,7 +149,7 @@ static void *mali_kutf_mgm_integration_create_fixture(struct kutf_context *conte
 	data->kbdev = kbdev;
 	data->group_id = context->fixture_index;
 
-	pr_debug("Fixture created\n");
+	pr_info("Fixture created\n");
 	return data;
 }
 

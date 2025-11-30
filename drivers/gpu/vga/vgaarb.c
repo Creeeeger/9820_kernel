@@ -1044,7 +1044,7 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 		curr_pos += 5;
 		remaining -= 5;
 
-		pr_debug("client 0x%p called 'lock'\n", priv);
+		pr_info("client 0x%p called 'lock'\n", priv);
 
 		if (!vga_str_to_iostate(curr_pos, remaining, &io_state)) {
 			ret_val = -EPROTO;
@@ -1080,7 +1080,7 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 		curr_pos += 7;
 		remaining -= 7;
 
-		pr_debug("client 0x%p called 'unlock'\n", priv);
+		pr_info("client 0x%p called 'unlock'\n", priv);
 
 		if (strncmp(curr_pos, "all", 3) == 0)
 			io_state = VGA_RSRC_LEGACY_IO | VGA_RSRC_LEGACY_MEM;
@@ -1136,7 +1136,7 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 		curr_pos += 8;
 		remaining -= 8;
 
-		pr_debug("client 0x%p called 'trylock'\n", priv);
+		pr_info("client 0x%p called 'trylock'\n", priv);
 
 		if (!vga_str_to_iostate(curr_pos, remaining, &io_state)) {
 			ret_val = -EPROTO;
@@ -1179,7 +1179,7 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 
 		curr_pos += 7;
 		remaining -= 7;
-		pr_debug("client 0x%p called 'target'\n", priv);
+		pr_info("client 0x%p called 'target'\n", priv);
 		/* if target is default */
 		if (!strncmp(curr_pos, "default", 7))
 			pdev = pci_dev_get(vga_default_device());
@@ -1191,20 +1191,20 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 			}
 			pdev = pci_get_domain_bus_and_slot(domain, bus, devfn);
 			if (!pdev) {
-				pr_debug("invalid PCI address %04x:%02x:%02x.%x\n",
+				pr_info("invalid PCI address %04x:%02x:%02x.%x\n",
 					 domain, bus, PCI_SLOT(devfn),
 					 PCI_FUNC(devfn));
 				ret_val = -ENODEV;
 				goto done;
 			}
 
-			pr_debug("%s ==> %04x:%02x:%02x.%x pdev %p\n", curr_pos,
+			pr_info("%s ==> %04x:%02x:%02x.%x pdev %p\n", curr_pos,
 				domain, bus, PCI_SLOT(devfn), PCI_FUNC(devfn),
 				pdev);
 		}
 
 		vgadev = vgadev_find(pdev);
-		pr_debug("vgadev %p\n", vgadev);
+		pr_info("vgadev %p\n", vgadev);
 		if (vgadev == NULL) {
 			if (pdev) {
 				vgaarb_dbg(&pdev->dev, "not a VGA device\n");
@@ -1243,7 +1243,7 @@ static ssize_t vga_arb_write(struct file *file, const char __user *buf,
 	} else if (strncmp(curr_pos, "decodes ", 8) == 0) {
 		curr_pos += 8;
 		remaining -= 8;
-		pr_debug("client 0x%p called 'decodes'\n", priv);
+		pr_info("client 0x%p called 'decodes'\n", priv);
 
 		if (!vga_str_to_iostate(curr_pos, remaining, &io_state)) {
 			ret_val = -EPROTO;
@@ -1268,7 +1268,7 @@ done:
 
 static unsigned int vga_arb_fpoll(struct file *file, poll_table *wait)
 {
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	poll_wait(file, &vga_wait_queue, wait);
 	return POLLIN;
@@ -1279,7 +1279,7 @@ static int vga_arb_open(struct inode *inode, struct file *file)
 	struct vga_arb_private *priv;
 	unsigned long flags;
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (priv == NULL)
@@ -1308,7 +1308,7 @@ static int vga_arb_release(struct inode *inode, struct file *file)
 	unsigned long flags;
 	int i;
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	spin_lock_irqsave(&vga_user_lock, flags);
 	list_del(&priv->list);

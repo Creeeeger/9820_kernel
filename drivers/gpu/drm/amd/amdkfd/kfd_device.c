@@ -309,7 +309,7 @@ bool kgd2kfd_device_init(struct kfd_dev *kfd,
 	dev_info(kfd_device, "added device %x:%x\n", kfd->pdev->vendor,
 		 kfd->pdev->device);
 
-	pr_debug("Starting kfd with the following scheduling policy %d\n",
+	pr_info("Starting kfd with the following scheduling policy %d\n",
 		sched_policy);
 
 	goto out;
@@ -422,7 +422,7 @@ static int kfd_gtt_sa_init(struct kfd_dev *kfd, unsigned int buf_size,
 	if (!kfd->gtt_sa_bitmap)
 		return -ENOMEM;
 
-	pr_debug("gtt_sa_num_of_chunks = %d, gtt_sa_bitmap = %p\n",
+	pr_info("gtt_sa_num_of_chunks = %d, gtt_sa_bitmap = %p\n",
 			kfd->gtt_sa_num_of_chunks, kfd->gtt_sa_bitmap);
 
 	mutex_init(&kfd->gtt_sa_lock);
@@ -466,7 +466,7 @@ int kfd_gtt_sa_allocate(struct kfd_dev *kfd, unsigned int size,
 	if ((*mem_obj) == NULL)
 		return -ENOMEM;
 
-	pr_debug("Allocated mem_obj = %p for size = %d\n", *mem_obj, size);
+	pr_info("Allocated mem_obj = %p for size = %d\n", *mem_obj, size);
 
 	start_search = 0;
 
@@ -478,7 +478,7 @@ kfd_gtt_restart_search:
 					kfd->gtt_sa_num_of_chunks,
 					start_search);
 
-	pr_debug("Found = %d\n", found);
+	pr_info("Found = %d\n", found);
 
 	/* If there wasn't any free chunk, bail out */
 	if (found == kfd->gtt_sa_num_of_chunks)
@@ -496,12 +496,12 @@ kfd_gtt_restart_search:
 					found,
 					kfd->gtt_sa_chunk_size);
 
-	pr_debug("gpu_addr = %p, cpu_addr = %p\n",
+	pr_info("gpu_addr = %p, cpu_addr = %p\n",
 			(uint64_t *) (*mem_obj)->gpu_addr, (*mem_obj)->cpu_ptr);
 
 	/* If we need only one chunk, mark it as allocated and get out */
 	if (size <= kfd->gtt_sa_chunk_size) {
-		pr_debug("Single bit\n");
+		pr_info("Single bit\n");
 		set_bit(found, kfd->gtt_sa_bitmap);
 		goto kfd_gtt_out;
 	}
@@ -536,7 +536,7 @@ kfd_gtt_restart_search:
 
 	} while (cur_size > 0);
 
-	pr_debug("range_start = %d, range_end = %d\n",
+	pr_info("range_start = %d, range_end = %d\n",
 		(*mem_obj)->range_start, (*mem_obj)->range_end);
 
 	/* Mark the chunks as allocated */
@@ -550,7 +550,7 @@ kfd_gtt_out:
 	return 0;
 
 kfd_gtt_no_free_chunk:
-	pr_debug("Allocation failed with mem_obj = %p\n", *mem_obj);
+	pr_info("Allocation failed with mem_obj = %p\n", *mem_obj);
 	mutex_unlock(&kfd->gtt_sa_lock);
 	kfree(*mem_obj);
 	return -ENOMEM;
@@ -564,7 +564,7 @@ int kfd_gtt_sa_free(struct kfd_dev *kfd, struct kfd_mem_obj *mem_obj)
 	if (!mem_obj)
 		return 0;
 
-	pr_debug("Free mem_obj = %p, range_start = %d, range_end = %d\n",
+	pr_info("Free mem_obj = %p, range_start = %d, range_end = %d\n",
 			mem_obj, mem_obj->range_start, mem_obj->range_end);
 
 	mutex_lock(&kfd->gtt_sa_lock);

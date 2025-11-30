@@ -462,7 +462,7 @@ static const char *kutf_clk_trace_do_get_platform(
 		platform = "GPU";
 	}
 
-	pr_debug("%s - platform is %s\n", __func__, platform);
+	pr_info("%s - platform is %s\n", __func__, platform);
 	snprintf(portal_msg_buf, PORTAL_MSG_LEN,
 			  "{SEQ:%d, PLATFORM:%s}", seq, platform);
 
@@ -739,7 +739,7 @@ static void mali_kutf_clk_rate_trace_test_portal(struct kutf_context *context)
 	struct kutf_clk_rate_trace_fixture_data *data = context->fixture;
 	struct clk_trace_portal_input new_cmd;
 
-	pr_debug("Test portal service start\n");
+	pr_info("Test portal service start\n");
 
 	while (data->server_state == PORTAL_STATE_LIVE) {
 		if (kutf_clk_trace_dequeue_portal_cmd(context, &new_cmd))
@@ -793,7 +793,7 @@ static void mali_kutf_clk_rate_trace_test_portal(struct kutf_context *context)
 	else
 		kutf_test_fail(context, data->result_msg);
 
-	pr_debug("Test end\n");
+	pr_info("Test end\n");
 }
 
 /**
@@ -812,21 +812,21 @@ static void *mali_kutf_clk_rate_trace_create_fixture(
 	int i;
 
 	/* Acquire the kbase device */
-	pr_debug("Finding device\n");
+	pr_info("Finding device\n");
 	kbdev = kbase_find_device(MINOR_FOR_FIRST_KBASE_DEV);
 	if (kbdev == NULL) {
 		kutf_test_fail(context, "Failed to find kbase device");
 		return NULL;
 	}
 
-	pr_debug("Creating fixture\n");
+	pr_info("Creating fixture\n");
 	data = kutf_mempool_alloc(&context->fixture_pool,
 			sizeof(struct kutf_clk_rate_trace_fixture_data));
 	if (!data)
 		return NULL;
 
 	*data = (const struct kutf_clk_rate_trace_fixture_data){ NULL };
-	pr_debug("Hooking up the test portal to kbdev clk rate trace\n");
+	pr_info("Hooking up the test portal to kbdev clk rate trace\n");
 	spin_lock(&kbdev->pm.clk_rtm.lock);
 
 	if (g_ptr_portal_data != NULL) {
@@ -867,11 +867,11 @@ static void *mali_kutf_clk_rate_trace_create_fixture(
 
 	if (data->nclks == 0) {
 		data->server_state = PORTAL_STATE_NO_CLK;
-		pr_debug("Kbdev has no clocks for rate trace");
+		pr_info("Kbdev has no clocks for rate trace");
 	} else
 		data->server_state = PORTAL_STATE_LIVE;
 
-	pr_debug("Created fixture\n");
+	pr_info("Created fixture\n");
 
 	return data;
 }
@@ -895,9 +895,9 @@ static void mali_kutf_clk_rate_trace_remove_fixture(
 		kbase_clk_rate_trace_manager_unsubscribe(
 			&kbdev->pm.clk_rtm, &data->listener);
 	}
-	pr_debug("Destroying fixture\n");
+	pr_info("Destroying fixture\n");
 	kbase_release_device(kbdev);
-	pr_debug("Destroyed fixture\n");
+	pr_info("Destroyed fixture\n");
 }
 
 /**
@@ -911,7 +911,7 @@ static int __init mali_kutf_clk_rate_trace_test_module_init(void)
 	unsigned int filters;
 	union kutf_callback_data suite_data = { NULL };
 
-	pr_debug("Creating app\n");
+	pr_info("Creating app\n");
 
 	g_ptr_portal_data = NULL;
 	kutf_app = kutf_create_application(CLK_RATE_TRACE_APP_NAME);
@@ -922,7 +922,7 @@ static int __init mali_kutf_clk_rate_trace_test_module_init(void)
 		return -ENOMEM;
 	}
 
-	pr_debug("Create suite %s\n", CLK_RATE_TRACE_SUITE_NAME);
+	pr_info("Create suite %s\n", CLK_RATE_TRACE_SUITE_NAME);
 	suite = kutf_create_suite_with_filters_and_data(
 			kutf_app, CLK_RATE_TRACE_SUITE_NAME, 1,
 			mali_kutf_clk_rate_trace_create_fixture,
@@ -943,7 +943,7 @@ static int __init mali_kutf_clk_rate_trace_test_module_init(void)
 			mali_kutf_clk_rate_trace_test_portal,
 			filters);
 
-	pr_debug("Init complete\n");
+	pr_info("Init complete\n");
 	return 0;
 }
 
@@ -953,9 +953,9 @@ static int __init mali_kutf_clk_rate_trace_test_module_init(void)
  */
 static void __exit mali_kutf_clk_rate_trace_test_module_exit(void)
 {
-	pr_debug("Exit start\n");
+	pr_info("Exit start\n");
 	kutf_destroy_application(kutf_app);
-	pr_debug("Exit complete\n");
+	pr_info("Exit complete\n");
 }
 
 

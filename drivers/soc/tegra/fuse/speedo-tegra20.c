@@ -85,7 +85,7 @@ void __init tegra20_init_speedo_data(struct tegra_sku_info *sku_info)
 		val = (val << 1) | (reg & 0x1);
 	}
 	val = val * SPEEDO_MULT;
-	pr_debug("Tegra CPU speedo value %u\n", val);
+	pr_info("Tegra CPU speedo value %u\n", val);
 
 	for (i = 0; i < (PROCESS_CORNERS_NUM - 1); i++) {
 		if (val <= cpu_process_speedos[sku_info->soc_speedo_id][i])
@@ -100,7 +100,7 @@ void __init tegra20_init_speedo_data(struct tegra_sku_info *sku_info)
 		val = (val << 1) | (reg & 0x1);
 	}
 	val = val * SPEEDO_MULT;
-	pr_debug("Core speedo value %u\n", val);
+	pr_info("Core speedo value %u\n", val);
 
 	for (i = 0; i < (PROCESS_CORNERS_NUM - 1); i++) {
 		if (val <= soc_process_speedos[sku_info->soc_speedo_id][i])

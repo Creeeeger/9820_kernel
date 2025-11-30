@@ -871,7 +871,7 @@ static void tegra_powergate_add(struct tegra_pmc *pmc, struct device_node *np)
 		goto remove_genpd;
 	}
 
-	pr_debug("added PM domain %s\n", pg->genpd.name);
+	pr_info("added PM domain %s\n", pg->genpd.name);
 
 	return;
 

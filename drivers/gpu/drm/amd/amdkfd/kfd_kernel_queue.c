@@ -44,7 +44,7 @@ static bool initialize(struct kernel_queue *kq, struct kfd_dev *dev,
 	if (WARN_ON(type != KFD_QUEUE_TYPE_DIQ && type != KFD_QUEUE_TYPE_HIQ))
 		return false;
 
-	pr_debug("Initializing queue type %d size %d\n", KFD_QUEUE_TYPE_HIQ,
+	pr_info("Initializing queue type %d size %d\n", KFD_QUEUE_TYPE_HIQ,
 			queue_size);
 
 	memset(&prop, 0, sizeof(prop));
@@ -139,7 +139,7 @@ static bool initialize(struct kernel_queue *kq, struct kfd_dev *dev,
 
 	/* assign HIQ to HQD */
 	if (type == KFD_QUEUE_TYPE_HIQ) {
-		pr_debug("Assigning hiq to hqd\n");
+		pr_info("Assigning hiq to hqd\n");
 		kq->queue->pipe = KFD_CIK_HIQ_PIPE;
 		kq->queue->queue = KFD_CIK_HIQ_QUEUE;
 		kq->mqd->load_mqd(kq->mqd, kq->queue->mqd, kq->queue->pipe,
@@ -220,9 +220,9 @@ static int acquire_packet_buffer(struct kernel_queue *kq,
 	queue_address = (unsigned int *)kq->pq_kernel_addr;
 	queue_size_dwords = kq->queue->properties.queue_size / sizeof(uint32_t);
 
-	pr_debug("rptr: %d\n", rptr);
-	pr_debug("wptr: %d\n", wptr);
-	pr_debug("queue_address 0x%p\n", queue_address);
+	pr_info("rptr: %d\n", rptr);
+	pr_info("wptr: %d\n", wptr);
+	pr_info("queue_address 0x%p\n", queue_address);
 
 	available_size = (rptr + queue_size_dwords - 1 - wptr) %
 							queue_size_dwords;
@@ -263,11 +263,11 @@ static void submit_packet(struct kernel_queue *kq)
 	int i;
 
 	for (i = *kq->wptr_kernel; i < kq->pending_wptr; i++) {
-		pr_debug("0x%2X ", kq->pq_kernel_addr[i]);
+		pr_info("0x%2X ", kq->pq_kernel_addr[i]);
 		if (i % 15 == 0)
-			pr_debug("\n");
+			pr_info("\n");
 	}
-	pr_debug("\n");
+	pr_info("\n");
 #endif
 
 	*kq->wptr_kernel = kq->pending_wptr;

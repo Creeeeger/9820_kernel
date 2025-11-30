@@ -110,14 +110,14 @@ static bool allocate_free_slot(struct kfd_process *process,
 			*out_page = page;
 			*out_slot_index = slot;
 
-			pr_debug("Allocated event signal slot in page %p, slot %d\n",
+			pr_info("Allocated event signal slot in page %p, slot %d\n",
 					page, slot);
 
 			return true;
 		}
 	}
 
-	pr_debug("No free event signal slots were found for process %p\n",
+	pr_info("No free event signal slots were found for process %p\n",
 			process);
 
 	return false;
@@ -155,9 +155,9 @@ static bool allocate_signal_page(struct file *devkfd, struct kfd_process *p)
 						   struct signal_page,
 						   event_pages)->page_index + 1;
 
-	pr_debug("Allocated new event signal page at %p, for process %p\n",
+	pr_info("Allocated new event signal page at %p, for process %p\n",
 			page, p);
-	pr_debug("Page index is %d\n", page->page_index);
+	pr_info("Page index is %d\n", page->page_index);
 
 	list_add(&page->event_pages, &p->signal_event_pages);
 
@@ -313,7 +313,7 @@ static int create_signal_event(struct file *devkfd,
 	ev->event_id = make_signal_event_id(ev->signal_page,
 						ev->signal_slot_index);
 
-	pr_debug("Signal event number %zu created with id %d, address %p\n",
+	pr_info("Signal event number %zu created with id %d, address %p\n",
 			p->signal_event_count, ev->event_id,
 			ev->user_signal_address);
 
@@ -827,7 +827,7 @@ int kfd_event_mmap(struct kfd_process *p, struct vm_area_struct *vma)
 	page = lookup_signal_page_by_index(p, page_index);
 	if (!page) {
 		/* Probably KFD bug, but mmap is user-accessible. */
-		pr_debug("Signal page could not be found for page_index %u\n",
+		pr_info("Signal page could not be found for page_index %u\n",
 				page_index);
 		return -EINVAL;
 	}
@@ -838,12 +838,12 @@ int kfd_event_mmap(struct kfd_process *p, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_NORESERVE
 		       | VM_DONTDUMP | VM_PFNMAP;
 
-	pr_debug("Mapping signal page\n");
-	pr_debug("     start user address  == 0x%08lx\n", vma->vm_start);
-	pr_debug("     end user address    == 0x%08lx\n", vma->vm_end);
-	pr_debug("     pfn                 == 0x%016lX\n", pfn);
-	pr_debug("     vm_flags            == 0x%08lX\n", vma->vm_flags);
-	pr_debug("     size                == 0x%08lX\n",
+	pr_info("Mapping signal page\n");
+	pr_info("     start user address  == 0x%08lx\n", vma->vm_start);
+	pr_info("     end user address    == 0x%08lx\n", vma->vm_end);
+	pr_info("     pfn                 == 0x%016lX\n", pfn);
+	pr_info("     vm_flags            == 0x%08lX\n", vma->vm_flags);
+	pr_info("     size                == 0x%08lX\n",
 			vma->vm_end - vma->vm_start);
 
 	page->user_address = (uint64_t __user *)vma->vm_start;

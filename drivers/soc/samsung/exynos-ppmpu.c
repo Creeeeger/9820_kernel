@@ -81,7 +81,7 @@ static irqreturn_t exynos_ppmpu_irq_handler_thread(int irq, void *dev_id)
 	int i;
 
 	if (data->need_log == PPMPU_SKIP_FAIL_INFO_LOGGING) {
-		pr_debug("PPMPU_FAIL_DETECTOR: Ignore PPMPU illegal reads\n");
+		pr_info("PPMPU_FAIL_DETECTOR: Ignore PPMPU illegal reads\n");
 		return IRQ_HANDLED;
 	}
 

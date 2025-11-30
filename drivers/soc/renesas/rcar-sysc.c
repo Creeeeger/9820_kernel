@@ -138,7 +138,7 @@ static int rcar_sysc_power(const struct rcar_sysc_ch *sysc_ch, bool on)
  out:
 	spin_unlock_irqrestore(&rcar_sysc_lock, flags);
 
-	pr_debug("sysc power %s domain %d: %08x -> %d\n", on ? "on" : "off",
+	pr_info("sysc power %s domain %d: %08x -> %d\n", on ? "on" : "off",
 		 sysc_ch->isr_bit, ioread32(rcar_sysc_base + SYSCISR), ret);
 	return ret;
 }
@@ -180,7 +180,7 @@ static int rcar_sysc_pd_power_off(struct generic_pm_domain *genpd)
 {
 	struct rcar_sysc_pd *pd = to_rcar_pd(genpd);
 
-	pr_debug("%s: %s\n", __func__, genpd->name);
+	pr_info("%s: %s\n", __func__, genpd->name);
 	return rcar_sysc_power_down(&pd->ch);
 }
 
@@ -188,7 +188,7 @@ static int rcar_sysc_pd_power_on(struct generic_pm_domain *genpd)
 {
 	struct rcar_sysc_pd *pd = to_rcar_pd(genpd);
 
-	pr_debug("%s: %s\n", __func__, genpd->name);
+	pr_info("%s: %s\n", __func__, genpd->name);
 	return rcar_sysc_power_up(&pd->ch);
 }
 
@@ -205,7 +205,7 @@ static void __init rcar_sysc_pd_setup(struct rcar_sysc_pd *pd)
 		 * This domain contains a CPU core and therefore it should
 		 * only be turned off if the CPU is not in use.
 		 */
-		pr_debug("PM domain %s contains %s\n", name, "CPU");
+		pr_info("PM domain %s contains %s\n", name, "CPU");
 		genpd->flags |= GENPD_FLAG_ALWAYS_ON;
 	} else if (pd->flags & PD_SCU) {
 		/*
@@ -213,7 +213,7 @@ static void __init rcar_sysc_pd_setup(struct rcar_sysc_pd *pd)
 		 * therefore it should only be turned off if the CPU cores are
 		 * not in use.
 		 */
-		pr_debug("PM domain %s contains %s\n", name, "SCU");
+		pr_info("PM domain %s contains %s\n", name, "SCU");
 		genpd->flags |= GENPD_FLAG_ALWAYS_ON;
 	} else if (pd->flags & PD_NO_CR) {
 		/*
@@ -239,12 +239,12 @@ static void __init rcar_sysc_pd_setup(struct rcar_sysc_pd *pd)
 
 	if (pd->flags & (PD_CPU | PD_NO_CR)) {
 		/* Skip CPUs (handled by SMP code) and areas without control */
-		pr_debug("%s: Not touching %s\n", __func__, genpd->name);
+		pr_info("%s: Not touching %s\n", __func__, genpd->name);
 		goto finalize;
 	}
 
 	if (!rcar_sysc_power_is_off(&pd->ch)) {
-		pr_debug("%s: %s is already powered\n", __func__, genpd->name);
+		pr_info("%s: %s is already powered\n", __func__, genpd->name);
 		goto finalize;
 	}
 
@@ -351,13 +351,13 @@ static int __init rcar_sysc_pd_init(void)
 	 */
 	syscimr = ioread32(base + SYSCIMR);
 	syscimr |= syscier;
-	pr_debug("%pOF: syscimr = 0x%08x\n", np, syscimr);
+	pr_info("%pOF: syscimr = 0x%08x\n", np, syscimr);
 	iowrite32(syscimr, base + SYSCIMR);
 
 	/*
 	 * SYSC needs all interrupt sources enabled to control power.
 	 */
-	pr_debug("%pOF: syscier = 0x%08x\n", np, syscier);
+	pr_info("%pOF: syscier = 0x%08x\n", np, syscier);
 	iowrite32(syscier, base + SYSCIER);
 
 	for (i = 0; i < info->num_areas; i++) {
@@ -425,12 +425,12 @@ void __init rcar_sysc_init(phys_addr_t base, u32 syscier)
 	 */
 	syscimr = ioread32(rcar_sysc_base + SYSCIMR);
 	syscimr |= syscier;
-	pr_debug("%s: syscimr = 0x%08x\n", __func__, syscimr);
+	pr_info("%s: syscimr = 0x%08x\n", __func__, syscimr);
 	iowrite32(syscimr, rcar_sysc_base + SYSCIMR);
 
 	/*
 	 * SYSC needs all interrupt sources enabled to control power.
 	 */
-	pr_debug("%s: syscier = 0x%08x\n", __func__, syscier);
+	pr_info("%s: syscier = 0x%08x\n", __func__, syscier);
 	iowrite32(syscier, rcar_sysc_base + SYSCIER);
 }

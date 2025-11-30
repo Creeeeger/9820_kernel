@@ -182,7 +182,7 @@ static int set_queue_properties_from_user(struct queue_properties *q_properties,
 		!access_ok(VERIFY_WRITE,
 			(const void __user *) args->eop_buffer_address,
 			sizeof(uint32_t))) {
-		pr_debug("Can't access eop buffer");
+		pr_info("Can't access eop buffer");
 		return -EFAULT;
 	}
 
@@ -190,7 +190,7 @@ static int set_queue_properties_from_user(struct queue_properties *q_properties,
 		!access_ok(VERIFY_WRITE,
 			(const void __user *) args->ctx_save_restore_address,
 			sizeof(uint32_t))) {
-		pr_debug("Can't access ctx save restore buffer");
+		pr_info("Can't access ctx save restore buffer");
 		return -EFAULT;
 	}
 
@@ -219,27 +219,27 @@ static int set_queue_properties_from_user(struct queue_properties *q_properties,
 	else
 		q_properties->format = KFD_QUEUE_FORMAT_PM4;
 
-	pr_debug("Queue Percentage: %d, %d\n",
+	pr_info("Queue Percentage: %d, %d\n",
 			q_properties->queue_percent, args->queue_percentage);
 
-	pr_debug("Queue Priority: %d, %d\n",
+	pr_info("Queue Priority: %d, %d\n",
 			q_properties->priority, args->queue_priority);
 
-	pr_debug("Queue Address: 0x%llX, 0x%llX\n",
+	pr_info("Queue Address: 0x%llX, 0x%llX\n",
 			q_properties->queue_address, args->ring_base_address);
 
-	pr_debug("Queue Size: 0x%llX, %u\n",
+	pr_info("Queue Size: 0x%llX, %u\n",
 			q_properties->queue_size, args->ring_size);
 
-	pr_debug("Queue r/w Pointers: %p, %p\n",
+	pr_info("Queue r/w Pointers: %p, %p\n",
 			q_properties->read_ptr,
 			q_properties->write_ptr);
 
-	pr_debug("Queue Format: %d\n", q_properties->format);
+	pr_info("Queue Format: %d\n", q_properties->format);
 
-	pr_debug("Queue EOP: 0x%llX\n", q_properties->eop_ring_buffer_address);
+	pr_info("Queue EOP: 0x%llX\n", q_properties->eop_ring_buffer_address);
 
-	pr_debug("Queue CTX save area: 0x%llX\n",
+	pr_info("Queue CTX save area: 0x%llX\n",
 			q_properties->ctx_save_restore_area_address);
 
 	return 0;
@@ -257,16 +257,16 @@ static int kfd_ioctl_create_queue(struct file *filep, struct kfd_process *p,
 
 	memset(&q_properties, 0, sizeof(struct queue_properties));
 
-	pr_debug("Creating queue ioctl\n");
+	pr_info("Creating queue ioctl\n");
 
 	err = set_queue_properties_from_user(&q_properties, args);
 	if (err)
 		return err;
 
-	pr_debug("Looking for gpu id 0x%x\n", args->gpu_id);
+	pr_info("Looking for gpu id 0x%x\n", args->gpu_id);
 	dev = kfd_device_by_id(args->gpu_id);
 	if (!dev) {
-		pr_debug("Could not find gpu id 0x%x\n", args->gpu_id);
+		pr_info("Could not find gpu id 0x%x\n", args->gpu_id);
 		return -EINVAL;
 	}
 
@@ -278,7 +278,7 @@ static int kfd_ioctl_create_queue(struct file *filep, struct kfd_process *p,
 		goto err_bind_process;
 	}
 
-	pr_debug("Creating queue for PASID %d on gpu 0x%x\n",
+	pr_info("Creating queue for PASID %d on gpu 0x%x\n",
 			p->pasid,
 			dev->id);
 
@@ -296,15 +296,15 @@ static int kfd_ioctl_create_queue(struct file *filep, struct kfd_process *p,
 
 	mutex_unlock(&p->mutex);
 
-	pr_debug("Queue id %d was created successfully\n", args->queue_id);
+	pr_info("Queue id %d was created successfully\n", args->queue_id);
 
-	pr_debug("Ring buffer address == 0x%016llX\n",
+	pr_info("Ring buffer address == 0x%016llX\n",
 			args->ring_base_address);
 
-	pr_debug("Read ptr address    == 0x%016llX\n",
+	pr_info("Read ptr address    == 0x%016llX\n",
 			args->read_pointer_address);
 
-	pr_debug("Write ptr address   == 0x%016llX\n",
+	pr_info("Write ptr address   == 0x%016llX\n",
 			args->write_pointer_address);
 
 	return 0;
@@ -321,7 +321,7 @@ static int kfd_ioctl_destroy_queue(struct file *filp, struct kfd_process *p,
 	int retval;
 	struct kfd_ioctl_destroy_queue_args *args = data;
 
-	pr_debug("Destroying queue id %d for pasid %d\n",
+	pr_info("Destroying queue id %d for pasid %d\n",
 				args->queue_id,
 				p->pasid);
 
@@ -368,7 +368,7 @@ static int kfd_ioctl_update_queue(struct file *filp, struct kfd_process *p,
 	properties.queue_percent = args->queue_percentage;
 	properties.priority = args->queue_priority;
 
-	pr_debug("Updating queue id %d for pasid %d\n",
+	pr_info("Updating queue id %d for pasid %d\n",
 			args->queue_id, p->pasid);
 
 	mutex_lock(&p->mutex);
@@ -447,7 +447,7 @@ static int kfd_ioctl_dbg_register(struct file *filep,
 		return -EINVAL;
 
 	if (dev->device_info->asic_family == CHIP_CARRIZO) {
-		pr_debug("kfd_ioctl_dbg_register not supported on CZ\n");
+		pr_info("kfd_ioctl_dbg_register not supported on CZ\n");
 		return -EINVAL;
 	}
 
@@ -475,7 +475,7 @@ static int kfd_ioctl_dbg_register(struct file *filep,
 				dev->dbgmgr = dbgmgr_ptr;
 		}
 	} else {
-		pr_debug("debugger already registered\n");
+		pr_info("debugger already registered\n");
 		status = -EINVAL;
 	}
 
@@ -498,7 +498,7 @@ static int kfd_ioctl_dbg_unregister(struct file *filep,
 		return -EINVAL;
 
 	if (dev->device_info->asic_family == CHIP_CARRIZO) {
-		pr_debug("kfd_ioctl_dbg_unregister not supported on CZ\n");
+		pr_info("kfd_ioctl_dbg_unregister not supported on CZ\n");
 		return -EINVAL;
 	}
 
@@ -543,7 +543,7 @@ static int kfd_ioctl_dbg_address_watch(struct file *filep,
 		return -EINVAL;
 
 	if (dev->device_info->asic_family == CHIP_CARRIZO) {
-		pr_debug("kfd_ioctl_dbg_wave_control not supported on CZ\n");
+		pr_info("kfd_ioctl_dbg_wave_control not supported on CZ\n");
 		return -EINVAL;
 	}
 
@@ -651,13 +651,13 @@ static int kfd_ioctl_dbg_wave_control(struct file *filep,
 		return -EINVAL;
 
 	if (dev->device_info->asic_family == CHIP_CARRIZO) {
-		pr_debug("kfd_ioctl_dbg_wave_control not supported on CZ\n");
+		pr_info("kfd_ioctl_dbg_wave_control not supported on CZ\n");
 		return -EINVAL;
 	}
 
 	/* input size must match the computed "compact" size */
 	if (args->buf_size_in_bytes != computed_buff_size) {
-		pr_debug("size mismatch, computed : actual %u : %u\n",
+		pr_info("size mismatch, computed : actual %u : %u\n",
 				args->buf_size_in_bytes, computed_buff_size);
 		return -EINVAL;
 	}
@@ -692,14 +692,14 @@ static int kfd_ioctl_dbg_wave_control(struct file *filep,
 
 	mutex_lock(kfd_get_dbgmgr_mutex());
 
-	pr_debug("Calling dbg manager process %p, operand %u, mode %u, trapId %u, message %u\n",
+	pr_info("Calling dbg manager process %p, operand %u, mode %u, trapId %u, message %u\n",
 			wac_info.process, wac_info.operand,
 			wac_info.mode, wac_info.trapId,
 			wac_info.dbgWave_msg.DbgWaveMsg.WaveMsgInfoGen2.Value);
 
 	status = kfd_dbgmgr_wave_control(dev->dbgmgr, &wac_info);
 
-	pr_debug("Returned status of dbg manager is %ld\n", status);
+	pr_info("Returned status of dbg manager is %ld\n", status);
 
 	mutex_unlock(kfd_get_dbgmgr_mutex());
 

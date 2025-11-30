@@ -193,7 +193,7 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		fd_info.phys = sg_phys(sgt->sgl);
-		pr_debug("%s: physical addr from kernel space = 0x%08x\n",
+		pr_info("%s: physical addr from kernel space = 0x%08x\n",
 				__func__, (unsigned int)fd_info.phys);
 
 		dma_buf_unmap_attachment(attachment, sgt, DMA_TO_DEVICE);

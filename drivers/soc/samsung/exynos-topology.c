@@ -282,7 +282,7 @@ void store_cpu_topology(unsigned int cpuid)
 		BUG_ON(cpuid_topo->cluster_id);
 	}
 
-	pr_debug("CPU%u: cluster %d coregroup %d core %d\n", cpuid,
+	pr_info("CPU%u: cluster %d coregroup %d core %d\n", cpuid,
 			cpuid_topo->cluster_id, cpuid_topo->coregroup_id, cpuid_topo->core_id);
 
 	update_siblings_masks(cpuid);

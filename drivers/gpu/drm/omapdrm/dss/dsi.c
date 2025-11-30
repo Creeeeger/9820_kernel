@@ -645,7 +645,7 @@ static void print_irq_status(u32 status)
 
 #define PIS(x) (status & DSI_IRQ_##x) ? (#x " ") : ""
 
-	pr_debug("DSI IRQ: 0x%x: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+	pr_info("DSI IRQ: 0x%x: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
 		status,
 		verbose_irq ? PIS(VC0) : "",
 		verbose_irq ? PIS(VC1) : "",
@@ -677,7 +677,7 @@ static void print_irq_status_vc(int channel, u32 status)
 
 #define PIS(x) (status & DSI_VC_IRQ_##x) ? (#x " ") : ""
 
-	pr_debug("DSI VC(%d) IRQ 0x%x: %s%s%s%s%s%s%s%s%s\n",
+	pr_info("DSI VC(%d) IRQ 0x%x: %s%s%s%s%s%s%s%s%s\n",
 		channel,
 		status,
 		PIS(CS),
@@ -699,7 +699,7 @@ static void print_irq_status_cio(u32 status)
 
 #define PIS(x) (status & DSI_CIO_IRQ_##x) ? (#x " ") : ""
 
-	pr_debug("DSI CIO IRQ 0x%x: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+	pr_info("DSI CIO IRQ 0x%x: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
 		status,
 		PIS(ERRSYNCESC1),
 		PIS(ERRSYNCESC2),
@@ -1234,7 +1234,7 @@ static void _dsi_print_reset_status(struct platform_device *dsidev)
 #define DSI_FLD_GET(fld, start, end)\
 	FLD_GET(dsi_read_reg(dsidev, DSI_##fld), start, end)
 
-	pr_debug("DSI resets: PLL (%d) CIO (%d) PHY (%x%x%x, %d, %d, %d)\n",
+	pr_info("DSI resets: PLL (%d) CIO (%d) PHY (%x%x%x, %d, %d, %d)\n",
 		DSI_FLD_GET(PLL_STATUS, 0, 0),
 		DSI_FLD_GET(COMPLEXIO_CFG1, 29, 29),
 		DSI_FLD_GET(DSIPHY_CFG5, b0, b0),
@@ -4449,7 +4449,7 @@ static void print_dsi_vm(const char *str,
 
 #define TO_DSI_T(x) ((u32)div64_u64((u64)x * 1000000000llu, byteclk))
 
-	pr_debug("%s bck %lu, %u/%u/%u/%u/%u/%u = %u+%u = %u, "
+	pr_info("%s bck %lu, %u/%u/%u/%u/%u/%u = %u+%u = %u, "
 			"%u/%u/%u/%u/%u/%u = %u + %u = %u\n",
 			str,
 			byteclk,
@@ -4480,7 +4480,7 @@ static void print_dispc_vm(const char *str, const struct videomode *vm)
 
 #define TO_DISPC_T(x) ((u32)div64_u64((u64)x * 1000000000llu, pck))
 
-	pr_debug("%s pck %lu, %u/%u/%u/%u = %u+%u = %u, "
+	pr_info("%s pck %lu, %u/%u/%u/%u = %u+%u = %u, "
 			"%u/%u/%u/%u = %u + %u = %u\n",
 			str,
 			pck,

@@ -118,7 +118,7 @@ static int __update_mqd(struct mqd_manager *mm, void *mqd,
 			mtype << CP_HQD_PQ_CONTROL__MTYPE__SHIFT;
 	m->cp_hqd_pq_control |=
 			ffs(q->queue_size / sizeof(unsigned int)) - 1 - 1;
-	pr_debug("cp_hqd_pq_control 0x%x\n", m->cp_hqd_pq_control);
+	pr_info("cp_hqd_pq_control 0x%x\n", m->cp_hqd_pq_control);
 
 	m->cp_hqd_pq_base_lo = lower_32_bits((uint64_t)q->queue_address >> 8);
 	m->cp_hqd_pq_base_hi = upper_32_bits((uint64_t)q->queue_address >> 8);
@@ -129,7 +129,7 @@ static int __update_mqd(struct mqd_manager *mm, void *mqd,
 	m->cp_hqd_pq_doorbell_control =
 		q->doorbell_off <<
 			CP_HQD_PQ_DOORBELL_CONTROL__DOORBELL_OFFSET__SHIFT;
-	pr_debug("cp_hqd_pq_doorbell_control 0x%x\n",
+	pr_info("cp_hqd_pq_doorbell_control 0x%x\n",
 			m->cp_hqd_pq_doorbell_control);
 
 	m->cp_hqd_eop_control = atc_bit << CP_HQD_EOP_CONTROL__EOP_ATC__SHIFT |

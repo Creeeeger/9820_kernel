@@ -98,23 +98,23 @@ int kfd_doorbell_init(struct kfd_dev *kfd)
 	if (!kfd->doorbell_kernel_ptr)
 		return -ENOMEM;
 
-	pr_debug("Doorbell initialization:\n");
-	pr_debug("doorbell base           == 0x%08lX\n",
+	pr_info("Doorbell initialization:\n");
+	pr_info("doorbell base           == 0x%08lX\n",
 			(uintptr_t)kfd->doorbell_base);
 
-	pr_debug("doorbell_id_offset      == 0x%08lX\n",
+	pr_info("doorbell_id_offset      == 0x%08lX\n",
 			kfd->doorbell_id_offset);
 
-	pr_debug("doorbell_process_limit  == 0x%08lX\n",
+	pr_info("doorbell_process_limit  == 0x%08lX\n",
 			doorbell_process_limit);
 
-	pr_debug("doorbell_kernel_offset  == 0x%08lX\n",
+	pr_info("doorbell_kernel_offset  == 0x%08lX\n",
 			(uintptr_t)kfd->doorbell_base);
 
-	pr_debug("doorbell aperture size  == 0x%08lX\n",
+	pr_info("doorbell aperture size  == 0x%08lX\n",
 			kfd->shared_resources.doorbell_aperture_size);
 
-	pr_debug("doorbell kernel address == 0x%08lX\n",
+	pr_info("doorbell kernel address == 0x%08lX\n",
 			(uintptr_t)kfd->doorbell_kernel_ptr);
 
 	return 0;
@@ -151,7 +151,7 @@ int kfd_doorbell_mmap(struct kfd_process *process, struct vm_area_struct *vma)
 
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
-	pr_debug("Mapping doorbell page\n"
+	pr_info("Mapping doorbell page\n"
 		 "     target user address == 0x%08llX\n"
 		 "     physical address    == 0x%08llX\n"
 		 "     vm_flags            == 0x%04lX\n"
@@ -191,7 +191,7 @@ u32 __iomem *kfd_get_kernel_doorbell(struct kfd_dev *kfd,
 	*doorbell_off = KERNEL_DOORBELL_PASID * (doorbell_process_allocation() /
 							sizeof(u32)) + inx;
 
-	pr_debug("Get kernel queue doorbell\n"
+	pr_info("Get kernel queue doorbell\n"
 			 "     doorbell offset   == 0x%08X\n"
 			 "     kernel address    == 0x%08lX\n",
 		*doorbell_off, (uintptr_t)(kfd->doorbell_kernel_ptr + inx));
@@ -214,7 +214,7 @@ inline void write_kernel_doorbell(u32 __iomem *db, u32 value)
 {
 	if (db) {
 		writel(value, db);
-		pr_debug("Writing %d to doorbell address 0x%p\n", value, db);
+		pr_info("Writing %d to doorbell address 0x%p\n", value, db);
 	}
 }
 

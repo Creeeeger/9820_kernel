@@ -3973,7 +3973,7 @@ static int smu7_program_display_gap(struct pp_hwmgr *hwmgr)
 	data->frame_time_x2 = frame_time_in_us * 2 / 100;
 
 	if (data->frame_time_x2 < 280) {
-		pr_debug("%s: enforce minimal VBITimeout: %d -> 280\n", __func__, data->frame_time_x2);
+		pr_info("%s: enforce minimal VBITimeout: %d -> 280\n", __func__, data->frame_time_x2);
 		data->frame_time_x2 = 280;
 	}
 

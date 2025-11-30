@@ -993,7 +993,7 @@ int qman_alloc_fq_table(u32 _num_fqids)
 	if (!fq_table)
 		return -ENOMEM;
 
-	pr_debug("Allocated fq lookup table at %p, entry count %u\n",
+	pr_info("Allocated fq lookup table at %p, entry count %u\n",
 		 fq_table, num_fqids * 2);
 	return 0;
 }
@@ -2795,7 +2795,7 @@ int qman_release_fqid(u32 fqid)
 	int ret = qman_shutdown_fq(fqid);
 
 	if (ret) {
-		pr_debug("FQID %d leaked\n", fqid);
+		pr_info("FQID %d leaked\n", fqid);
 		return ret;
 	}
 
@@ -2855,7 +2855,7 @@ int qman_release_pool(u32 qp)
 
 	ret = qpool_cleanup(qp);
 	if (ret) {
-		pr_debug("CHID %d leaked\n", qp);
+		pr_info("CHID %d leaked\n", qp);
 		return ret;
 	}
 
@@ -2909,7 +2909,7 @@ int qman_release_cgrid(u32 cgrid)
 
 	ret = cgr_cleanup(cgrid);
 	if (ret) {
-		pr_debug("CGRID %d leaked\n", cgrid);
+		pr_info("CGRID %d leaked\n", cgrid);
 		return ret;
 	}
 

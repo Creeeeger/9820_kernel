@@ -71,7 +71,7 @@ static int __init rcar_rst_init(void)
 	cfg = match->data;
 	saved_mode = ioread32(base + cfg->modemr);
 
-	pr_debug("%pOF: MODE = 0x%08x\n", np, saved_mode);
+	pr_info("%pOF: MODE = 0x%08x\n", np, saved_mode);
 
 out_put:
 	of_node_put(np);

@@ -246,7 +246,7 @@ static int ra_set_mux_rate(struct cmucal_clk *clk, unsigned int rate)
 	}
 
 	if (i == mux->num_parents)
-		pr_debug("approximately select %s %u:%u:%u\n",
+		pr_info("approximately select %s %u:%u:%u\n",
 			 clk->name, rate, min_diff, sel);
 	ret = ra_set_div_mux(clk, sel);
 
@@ -673,7 +673,7 @@ int ra_set_value(unsigned int id, unsigned int params)
 		return -EVCLKINVAL;
 	}
 
-	pr_debug("%s:[%s:%x]type : %x, params : %x\n",
+	pr_info("%s:[%s:%x]type : %x, params : %x\n",
 		__func__, clk->name, id, type, params);
 
 	switch (type) {
@@ -1001,7 +1001,7 @@ int ra_compare_clk_list(unsigned int *params,
 
 	return 0;
 mismatch:
-	pr_debug("mis-match %s <%u %u> \n",
+	pr_info("mis-match %s <%u %u> \n",
 		 clk->name, params[i], ra_get_value(list[i]));
 	return -EVCLKNOENT;
 }

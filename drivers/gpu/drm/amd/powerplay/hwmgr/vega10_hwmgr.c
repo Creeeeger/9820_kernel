@@ -4170,7 +4170,7 @@ static int vega10_notify_smc_display_config_after_ps_adjustment(
 			pr_info("Attempt to set Hard Min for DCEFCLK Failed!");
 		}
 	} else {
-		pr_debug("Cannot find requested DCEFCLK!");
+		pr_info("Cannot find requested DCEFCLK!");
 	}
 
 	if (min_clocks.memoryClock != 0) {

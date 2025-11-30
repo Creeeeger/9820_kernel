@@ -966,7 +966,7 @@ static void update_job_irq_js_state(struct dummy_model_t *dummy, int mask)
 	int i;
 
 	lockdep_assert_held(&hw_error_status.access_lock);
-	pr_debug("%s", "Updating the JS_ACTIVE register");
+	pr_info("%s", "Updating the JS_ACTIVE register");
 
 	for (i = 0; i < NUM_SLOTS; i++) {
 		int slot_active = dummy->slots[i].job_active;
@@ -993,7 +993,7 @@ static void update_job_irq_js_state(struct dummy_model_t *dummy, int mask)
 			}
 		}
 	}
-	pr_debug("The new snapshot is 0x%08X\n", dummy->job_irq_js_state);
+	pr_info("The new snapshot is 0x%08X\n", dummy->job_irq_js_state);
 }
 #endif /* !MALI_USE_CSF */
 
@@ -1016,7 +1016,7 @@ static const struct control_reg_values_t *find_control_reg_values(const char *gp
 
 		if (!strcmp(fcrv->name, gpu)) {
 			ret = fcrv;
-			pr_debug("Found control register values for %s\n", gpu);
+			pr_info("Found control register values for %s\n", gpu);
 			break;
 		}
 	}
@@ -1163,13 +1163,13 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		}
 		if (addr == JOB_SLOT_REG(slot_idx, JS_COMMAND_NEXT) &&
 								value == 1) {
-			pr_debug("%s", "start detected");
+			pr_info("%s", "start detected");
 			KBASE_DEBUG_ASSERT(!dummy->slots[slot_idx].job_active ||
 					!dummy->slots[slot_idx].job_queued);
 			if ((dummy->slots[slot_idx].job_active) ||
 					(hw_error_status.job_irq_rawstat &
 						(1 << (slot_idx + 16)))) {
-				pr_debug("~~~~~~~~~~~ Start: job slot is already active or there are IRQ pending  ~~~~~~~~~"
+				pr_info("~~~~~~~~~~~ Start: job slot is already active or there are IRQ pending  ~~~~~~~~~"
 									);
 				dummy->slots[slot_idx].job_queued = 1;
 			} else {
@@ -1191,7 +1191,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 			} else {	/*value == 3 */
 
 				if (dummy->slots[slot_idx].job_disabled != 0) {
-					pr_debug("enabling slot after HARD_STOP"
+					pr_info("enabling slot after HARD_STOP"
 									);
 					dummy->slots[slot_idx].job_disabled = 0;
 				}
@@ -1209,7 +1209,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 			 * update_job_irq_js_state
 			 */
 		}
-		pr_debug("%s", "job irq cleared");
+		pr_info("%s", "job irq cleared");
 		update_job_irq_js_state(dummy, value);
 		/*remove error condition for JOB */
 		hw_error_status.job_irq_rawstat &= ~(value);
@@ -1219,11 +1219,11 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 
 		for (i = 0; i < NUM_SLOTS; i++)
 			dummy->slots[i].job_irq_mask = (value >> i) & 0x01;
-		pr_debug("job irq mask to value %x", value);
+		pr_info("job irq mask to value %x", value);
 	} else if (addr == GPU_CONTROL_REG(GPU_IRQ_MASK)) {
 #else /* !MALI_USE_CSF */
 	if (addr == JOB_CONTROL_REG(JOB_IRQ_CLEAR)) {
-		pr_debug("%s", "job irq cleared");
+		pr_info("%s", "job irq cleared");
 
 		hw_error_status.job_irq_rawstat &= ~(value);
 		hw_error_status.job_irq_status &= ~(value);
@@ -1231,7 +1231,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		/* ignore JOB_IRQ_MASK as it is handled by CSFFW */
 	} else if (addr == GPU_CONTROL_REG(GPU_IRQ_MASK)) {
 #endif /* !MALI_USE_CSF */
-		pr_debug("GPU_IRQ_MASK set to 0x%x", value);
+		pr_info("GPU_IRQ_MASK set to 0x%x", value);
 		dummy->reset_completed_mask = (value >> 8) & 0x01;
 		dummy->power_changed_mask = (value >> 9) & 0x03;
 		dummy->clean_caches_completed_irq_enabled = (value & (1u << 17)) != 0u;
@@ -1239,7 +1239,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		dummy->coherency_enable = value;
 	} else if (addr == GPU_CONTROL_REG(GPU_IRQ_CLEAR)) {
 		if (value & (1 << 8)) {
-			pr_debug("%s", "gpu RESET_COMPLETED irq cleared");
+			pr_info("%s", "gpu RESET_COMPLETED irq cleared");
 			dummy->reset_completed = 0;
 		}
 		if (value & (3 << 9))
@@ -1257,7 +1257,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		switch (value) {
 		case GPU_COMMAND_SOFT_RESET:
 		case GPU_COMMAND_HARD_RESET:
-			pr_debug("gpu reset (%d) requested", value);
+			pr_info("gpu reset (%d) requested", value);
 			/* no more fault status */
 			hw_error_status.gpu_fault_status = 0;
 			/* completed reset instantly */
@@ -1271,7 +1271,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		case GPU_COMMAND_CLEAN_CACHES:
 		case GPU_COMMAND_CLEAN_INV_CACHES:
 #endif
-			pr_debug("clean caches requested");
+			pr_info("clean caches requested");
 			dummy->clean_caches_completed = true;
 			break;
 #if   !MALI_USE_CSF
@@ -1292,7 +1292,7 @@ u8 midgard_model_write_reg(void *h, u32 addr, u32 value)
 		if (addr == GPU_CONTROL_REG(CSF_HW_DOORBELL_PAGE_OFFSET))
 			hw_error_status.job_irq_status = JOB_IRQ_GLOBAL_IF;
 	} else if (addr == IPA_CONTROL_REG(COMMAND)) {
-		pr_debug("Received IPA_CONTROL command");
+		pr_info("Received IPA_CONTROL command");
 	} else if (addr == IPA_CONTROL_REG(TIMER)) {
 		ipa_control_timer_enabled = value ? true : false;
 	} else if ((addr >= IPA_CONTROL_REG(SELECT_CSHW_LO)) &&
@@ -1514,7 +1514,7 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 	*value = 0;		/* 0 by default */
 #if !MALI_USE_CSF
 	if (addr == JOB_CONTROL_REG(JOB_IRQ_JS_STATE)) {
-		pr_debug("%s", "JS_ACTIVE being read");
+		pr_info("%s", "JS_ACTIVE being read");
 
 		*value = dummy->job_irq_js_state;
 	} else if (addr == GPU_CONTROL_REG(GPU_ID)) {
@@ -1525,10 +1525,10 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 		*value = dummy->control_reg_values->gpu_id;
 	} else if (addr == JOB_CONTROL_REG(JOB_IRQ_RAWSTAT)) {
 		*value = hw_error_status.job_irq_rawstat;
-		pr_debug("%s", "JS_IRQ_RAWSTAT being read");
+		pr_info("%s", "JS_IRQ_RAWSTAT being read");
 	} else if (addr == JOB_CONTROL_REG(JOB_IRQ_STATUS)) {
 		*value = hw_error_status.job_irq_status;
-		pr_debug("JS_IRQ_STATUS being read %x", *value);
+		pr_info("JS_IRQ_STATUS being read %x", *value);
 	}
 #if !MALI_USE_CSF
 	else if (addr == JOB_CONTROL_REG(JOB_IRQ_MASK)) {
@@ -1537,7 +1537,7 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 		*value = 0;
 		for (i = 0; i < NUM_SLOTS; i++)
 			*value |= dummy->slots[i].job_irq_mask << i;
-		pr_debug("JS_IRQ_MASK being read %x", *value);
+		pr_info("JS_IRQ_MASK being read %x", *value);
 	}
 #else /* !MALI_USE_CSF */
 	else if (addr == JOB_CONTROL_REG(JOB_IRQ_MASK))
@@ -1547,7 +1547,7 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 		*value = (dummy->reset_completed_mask << 8) |
 			 ((dummy->clean_caches_completed_irq_enabled ? 1u : 0u) << 17) |
 			 (dummy->power_changed_mask << 9) | (1 << 7) | 1;
-		pr_debug("GPU_IRQ_MASK read %x", *value);
+		pr_info("GPU_IRQ_MASK read %x", *value);
 	} else if (addr == GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)) {
 		*value = (dummy->power_changed << 9) | (dummy->power_changed << 10) |
 			 (dummy->reset_completed << 8) |
@@ -1556,7 +1556,7 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 #endif /* !MALI_USE_CSF */
 			 ((dummy->clean_caches_completed ? 1u : 0u) << 17) |
 			 hw_error_status.gpu_error_irq;
-		pr_debug("GPU_IRQ_RAWSTAT read %x", *value);
+		pr_info("GPU_IRQ_RAWSTAT read %x", *value);
 	} else if (addr == GPU_CONTROL_REG(GPU_IRQ_STATUS)) {
 		*value = ((dummy->power_changed && (dummy->power_changed_mask & 0x1)) << 9) |
 			 ((dummy->power_changed && (dummy->power_changed_mask & 0x2)) << 10) |
@@ -1570,7 +1570,7 @@ u8 midgard_model_read_reg(void *h, u32 addr, u32 * const value)
 				   0u)
 			  << 17) |
 			 hw_error_status.gpu_error_irq;
-		pr_debug("GPU_IRQ_STAT read %x", *value);
+		pr_info("GPU_IRQ_STAT read %x", *value);
 	} else if (addr == GPU_CONTROL_REG(GPU_STATUS)) {
 		*value = 0;
 #if !MALI_USE_CSF

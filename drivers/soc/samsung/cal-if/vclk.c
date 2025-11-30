@@ -244,7 +244,7 @@ unsigned long vclk_recalc_rate(unsigned int id) {
 
         if (i == vclk->num_rates) {
             vclk->vrate = 0;
-            pr_debug("%s:%x failed\n", __func__, id);
+            pr_info("%s:%x failed\n", __func__, id);
         }
     } else {
         vclk->vrate = ra_recalc_rate(vclk->list[0]);
@@ -471,7 +471,7 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
         vclk->min_freq = minmax_table[MINMAX_MIN_FREQ] * 1000;
         vclk->max_freq = minmax_table[MINMAX_MAX_FREQ] * 1000;
     }
-    pr_debug("ACPM_DVFS :%s\n", vclk->name);
+    pr_info("ACPM_DVFS :%s\n", vclk->name);
 
     vclk->list = kzalloc(sizeof(unsigned int) * vclk->num_list, GFP_KERNEL);
     if (!vclk->list)
@@ -744,12 +744,12 @@ static int vclk_get_asv_info(struct vclk *vclk) {
         vclk->resume_freq = -1;
 
 minmax_skip:
-    pr_debug("   num_rates    : %7d\n", vclk->num_rates);
-    pr_debug("   num_clk_list : %7d\n", vclk->num_list);
-    pr_debug("   max_freq     : %7d\n", vclk->max_freq);
-    pr_debug("   min_freq     : %7d\n", vclk->min_freq);
-    pr_debug("   boot_freq    : %7d\n", vclk->boot_freq);
-    pr_debug("   resume_freq  : %7d\n", vclk->resume_freq);
+    pr_info("   num_rates    : %7d\n", vclk->num_rates);
+    pr_info("   num_clk_list : %7d\n", vclk->num_list);
+    pr_info("   max_freq     : %7d\n", vclk->max_freq);
+    pr_info("   min_freq     : %7d\n", vclk->min_freq);
+    pr_info("   boot_freq    : %7d\n", vclk->boot_freq);
+    pr_info("   resume_freq  : %7d\n", vclk->resume_freq);
 
     return ret;
 }

@@ -113,7 +113,7 @@ static void ipu_ch_param_write_field(struct ipuv3_channel *ch, u32 wbs, u32 v)
 	u32 mask = (1 << size) - 1;
 	u32 val;
 
-	pr_debug("%s %d %d %d\n", __func__, word, bit , size);
+	pr_info("%s %d %d %d\n", __func__, word, bit , size);
 
 	val = readl(&base->word[word].data[i]);
 	val &= ~(mask << ofs);
@@ -139,7 +139,7 @@ static u32 ipu_ch_param_read_field(struct ipuv3_channel *ch, u32 wbs)
 	u32 mask = (1 << size) - 1;
 	u32 val = 0;
 
-	pr_debug("%s %d %d %d\n", __func__, word, bit , size);
+	pr_info("%s %d %d %d\n", __func__, word, bit , size);
 
 	val = (readl(&base->word[word].data[i]) >> ofs) & mask;
 
@@ -709,7 +709,7 @@ int ipu_cpmem_set_image(struct ipuv3_channel *ch, struct ipu_image *image)
 	int offset, u_offset, v_offset;
 	int ret = 0;
 
-	pr_debug("%s: resolution: %dx%d stride: %d\n",
+	pr_info("%s: resolution: %dx%d stride: %d\n",
 		 __func__, pix->width, pix->height,
 		 pix->bytesperline);
 

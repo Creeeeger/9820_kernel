@@ -467,7 +467,7 @@ int tinydrm_spi_transfer(struct spi_device *spi, u32 speed_hz,
 	max_chunk = tinydrm_spi_max_transfer_size(spi, 0);
 
 	if (drm_debug & DRM_UT_DRIVER)
-		pr_debug("[drm:%s] bpw=%u, max_chunk=%zu, transfers:\n",
+		pr_info("[drm:%s] bpw=%u, max_chunk=%zu, transfers:\n",
 			 __func__, bpw, max_chunk);
 
 	if (bpw == 16 && !tinydrm_spi_bpw_supported(spi, 16)) {

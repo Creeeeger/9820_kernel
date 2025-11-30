@@ -121,7 +121,7 @@ static void exynos_seclog_worker(struct work_struct *work)
 	unsigned long v_log_addr = 0;
 	unsigned int cpu = 0;
 
-	pr_debug("%s: Start seclog_worker\n", __func__);
+	pr_info("%s: Start seclog_worker\n", __func__);
 
 	/* Print log message in a message buffer */
 	for (cpu = 0; cpu < NR_CPUS; cpu++) {
@@ -162,15 +162,15 @@ static void exynos_seclog_worker(struct work_struct *work)
 			}
 
 			/* For debug */
-			pr_debug("[SECLOG_DEBUG C%d] read_cnt[%d]\n",
+			pr_info("[SECLOG_DEBUG C%d] read_cnt[%d]\n",
 					cpu, sec_log[cpu]->log_read_cnt);
-			pr_debug("[SECLOG_DEBUG C%d] write_cnt[%d]\n",
+			pr_info("[SECLOG_DEBUG C%d] write_cnt[%d]\n",
 					cpu, sec_log[cpu]->log_write_cnt);
-			pr_debug("[SECLOG_DEBUG C%d] return_cnt[%d]\n",
+			pr_info("[SECLOG_DEBUG C%d] return_cnt[%d]\n",
 					cpu, sec_log[cpu]->log_return_cnt);
-			pr_debug("[SECLOG_DEBUG C%d] v_log_addr[%#lx]\n",
+			pr_info("[SECLOG_DEBUG C%d] v_log_addr[%#lx]\n",
 					cpu, v_log_addr);
-			pr_debug("[SECLOG_DEBUG C%d] p_log_addr[%#lx]\n",
+			pr_info("[SECLOG_DEBUG C%d] p_log_addr[%#lx]\n",
 					cpu,
 					v_log_addr
 					- (unsigned long)ldata.virt_addr
@@ -181,11 +181,11 @@ static void exynos_seclog_worker(struct work_struct *work)
 			v_log = (char *)v_log_addr + sizeof(struct log_header_info);
 
 			/* For debug */
-			pr_debug("[SECLOG_DEBUG C%d] v_log_h[%#lx]\n",
+			pr_info("[SECLOG_DEBUG C%d] v_log_h[%#lx]\n",
 					cpu, (unsigned long)v_log_h);
-			pr_debug("[SECLOG_DEBUG C%d] v_log[%#lx]\n",
+			pr_info("[SECLOG_DEBUG C%d] v_log[%#lx]\n",
 					cpu, (unsigned long)v_log);
-			pr_debug("[SECLOG_DEBUG C%d] log_len = %d\n",
+			pr_info("[SECLOG_DEBUG C%d] log_len = %d\n",
 					cpu, v_log_h->log_len);
 
 			/* Print logs from SWd */
@@ -219,7 +219,7 @@ static irqreturn_t exynos_seclog_irq_handler(int irq, void *dev_id)
 		}
 	}
 
-	pr_debug("ISR for Secure log is implemented!\n");
+	pr_info("ISR for Secure log is implemented!\n");
 
 	return IRQ_HANDLED;
 }

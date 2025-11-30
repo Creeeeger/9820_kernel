@@ -175,12 +175,12 @@ static void set_ocp_max_limit(unsigned int down_step)
 		target_max = get_ocp_target_max_limit(down_step);
 		if (target_max) {
 			data->clipped_freq = target_max;
-			pr_debug("OCP max limit is set to %u kHz\n", data->clipped_freq);
+			pr_info("OCP max limit is set to %u kHz\n", data->clipped_freq);
 		} else
 			return;
 	} else {
 		data->clipped_freq = data->max_freq;
-		pr_debug("OCP max limit is released\n");
+		pr_info("OCP max limit is released\n");
 	}
 
 	dbg_snapshot_printk("OCP_enter:%ukHz(%s)\n",

@@ -709,7 +709,7 @@ int of_get_drm_display_mode(struct device_node *np,
 	if (bus_flags)
 		drm_bus_flags_from_videomode(&vm, bus_flags);
 
-	pr_debug("%pOF: got %dx%d display mode from %s\n",
+	pr_info("%pOF: got %dx%d display mode from %s\n",
 		np, vm.hactive, vm.vactive, np->name);
 	drm_mode_debug_printmodeline(dmode);
 

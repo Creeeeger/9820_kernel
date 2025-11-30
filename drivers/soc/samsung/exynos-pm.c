@@ -349,7 +349,7 @@ static void exynos_pm_syscore_resume(void)
 	exynos_show_wakeup_reason(pm_info->is_early_wakeup);
 
 	if (!pm_info->is_early_wakeup)
-		pr_debug("%s %s: post sleep, preparing to return\n",
+		pr_info("%s %s: post sleep, preparing to return\n",
 						EXYNOS_PM_PREFIX, __func__);
 }
 

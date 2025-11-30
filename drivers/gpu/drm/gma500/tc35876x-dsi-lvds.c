@@ -757,7 +757,7 @@ static int cmi_lcd_hack_create_device(void)
 		.addr = CMI_LCD_I2C_ADDR,
 	};
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	adapter = i2c_get_adapter(CMI_LCD_I2C_ADAPTER);
 	if (!adapter) {
@@ -820,7 +820,7 @@ void tc35876x_init(struct drm_device *dev)
 
 void tc35876x_exit(void)
 {
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	i2c_del_driver(&tc35876x_bridge_i2c_driver);
 

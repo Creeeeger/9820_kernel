@@ -334,7 +334,7 @@ int exynos_hiu_set_freq(unsigned int id, unsigned int req_freq)
 	if (!data->enabled)
 		return -ENODEV;
 
-	pr_debug("exynos-hiu: update data->cur_freq:%d to %d\n", data->cur_freq, req_freq);
+	pr_info("exynos-hiu: update data->cur_freq:%d to %d\n", data->cur_freq, req_freq);
 
 	/*
 	 * If HIU H/W communicates with ACPM depending on middle core's p-state,
@@ -417,7 +417,7 @@ int exynos_hiu_set_freq(unsigned int id, unsigned int req_freq)
 			data->cur_freq = req_freq;
 	}
 
-	pr_debug("exynos-hiu: set REQDVFS to HIU : %ukHz\n", req_freq);
+	pr_info("exynos-hiu: set REQDVFS to HIU : %ukHz\n", req_freq);
 
 	return 0;
 }
@@ -545,7 +545,7 @@ static void exynos_hiu_hwi_work(struct work_struct *work)
 
 	policy = cpufreq_cpu_get(cpumask_first(&data->cpus));
 	if (!policy) {
-		pr_debug("Failed to get CPUFreq policy in HIU work\n");
+		pr_info("Failed to get CPUFreq policy in HIU work\n");
 		goto done;
 	}
 
@@ -750,7 +750,7 @@ static int exynos_hiu_policy_callback(struct notifier_block *nb,
 		}
 		mutex_unlock(&data->lock);
 
-		pr_debug("exynos-hiu: update clipped freq:%d\n", data->clipped_freq);
+		pr_info("exynos-hiu: update clipped freq:%d\n", data->clipped_freq);
 		if (check_hiu_need_boost_thrott())
 			atomic_inc(&boost_throttling);
 		break;

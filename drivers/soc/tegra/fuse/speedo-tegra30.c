@@ -99,7 +99,7 @@ static void __init fuse_speedo_calib(u32 *speedo_g, u32 *speedo_lp)
 	*speedo_g = ((reg >> 16) & 0xFFFF) * 4;
 
 	ate_ver = tegra_fuse_read_early(FUSE_TEST_PROG_VER);
-	pr_debug("Tegra ATE prog ver %d.%d\n", ate_ver/10, ate_ver%10);
+	pr_info("Tegra ATE prog ver %d.%d\n", ate_ver/10, ate_ver%10);
 
 	if (ate_ver >= 26) {
 		bit_minus1 = tegra_fuse_read_spare(LP_SPEEDO_BIT_MINUS1);
@@ -257,8 +257,8 @@ void __init tegra30_init_speedo_data(struct tegra_sku_info *sku_info)
 
 	rev_sku_to_speedo_ids(sku_info);
 	fuse_speedo_calib(&cpu_speedo_val, &soc_speedo_val);
-	pr_debug("Tegra CPU speedo value %u\n", cpu_speedo_val);
-	pr_debug("Tegra Core speedo value %u\n", soc_speedo_val);
+	pr_info("Tegra CPU speedo value %u\n", cpu_speedo_val);
+	pr_info("Tegra Core speedo value %u\n", soc_speedo_val);
 
 	for (i = 0; i < CPU_PROCESS_CORNERS; i++) {
 		if (cpu_speedo_val < cpu_process_speedos[threshold_index][i])

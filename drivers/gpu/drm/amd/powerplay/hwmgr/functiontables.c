@@ -35,7 +35,7 @@ static int phm_run_table(struct pp_hwmgr *hwmgr,
 	phm_table_function *function;
 
 	if (rt_table->function_list == NULL) {
-		pr_debug("this function not implement!\n");
+		pr_info("this function not implement!\n");
 		return 0;
 	}
 

@@ -41,7 +41,7 @@
 #endif
 
 #define DSSDBG(format, ...) \
-	pr_debug(format, ## __VA_ARGS__)
+	pr_info(format, ## __VA_ARGS__)
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSERR(format, ...) \

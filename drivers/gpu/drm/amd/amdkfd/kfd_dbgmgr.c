@@ -95,7 +95,7 @@ bool kfd_dbgmgr_create(struct kfd_dbgmgr **ppmgr, struct kfd_dev *pdev)
 long kfd_dbgmgr_register(struct kfd_dbgmgr *pmgr, struct kfd_process *p)
 {
 	if (pmgr->pasid != 0) {
-		pr_debug("H/W debugger is already active using pasid %d\n",
+		pr_info("H/W debugger is already active using pasid %d\n",
 				pmgr->pasid);
 		return -EBUSY;
 	}
@@ -116,7 +116,7 @@ long kfd_dbgmgr_unregister(struct kfd_dbgmgr *pmgr, struct kfd_process *p)
 {
 	/* Is the requests coming from the already registered process? */
 	if (pmgr->pasid != p->pasid) {
-		pr_debug("H/W debugger is not registered by calling pasid %d\n",
+		pr_info("H/W debugger is not registered by calling pasid %d\n",
 				p->pasid);
 		return -EINVAL;
 	}
@@ -133,7 +133,7 @@ long kfd_dbgmgr_wave_control(struct kfd_dbgmgr *pmgr,
 {
 	/* Is the requests coming from the already registered process? */
 	if (pmgr->pasid != wac_info->process->pasid) {
-		pr_debug("H/W debugger support was not registered for requester pasid %d\n",
+		pr_info("H/W debugger support was not registered for requester pasid %d\n",
 				wac_info->process->pasid);
 		return -EINVAL;
 	}
@@ -146,7 +146,7 @@ long kfd_dbgmgr_address_watch(struct kfd_dbgmgr *pmgr,
 {
 	/* Is the requests coming from the already registered process? */
 	if (pmgr->pasid != adw_info->process->pasid) {
-		pr_debug("H/W debugger support was not registered for requester pasid %d\n",
+		pr_info("H/W debugger support was not registered for requester pasid %d\n",
 				adw_info->process->pasid);
 		return -EINVAL;
 	}

@@ -155,7 +155,7 @@ static int bench_sync(void *arg)
 		count++;
 	} while (!time_after(jiffies, end_time));
 	kt = ktime_sub(ktime_get(), kt);
-	pr_debug("%s: %lu random evaluations, %lluns/prng\n",
+	pr_info("%s: %lu random evaluations, %lluns/prng\n",
 		 __func__, count, (long long)div64_ul(ktime_to_ns(kt), count));
 	prng32_1M = div64_ul(ktime_to_ns(kt) << 20, count);
 

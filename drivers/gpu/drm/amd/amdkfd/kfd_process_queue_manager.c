@@ -49,7 +49,7 @@ static int find_available_queue_slot(struct process_queue_manager *pqm,
 	found = find_first_zero_bit(pqm->queue_slot_bitmap,
 			KFD_MAX_NUM_OF_QUEUES_PER_PROCESS);
 
-	pr_debug("The new slot id %lu\n", found);
+	pr_info("The new slot id %lu\n", found);
 
 	if (found >= KFD_MAX_NUM_OF_QUEUES_PER_PROCESS) {
 		pr_info("Cannot open more queues for process with pasid %d\n",
@@ -121,7 +121,7 @@ static int create_cp_queue(struct process_queue_manager *pqm,
 	(*q)->device = dev;
 	(*q)->process = pqm->process;
 
-	pr_debug("PQM After init queue");
+	pr_info("PQM After init queue");
 
 	return retval;
 }
@@ -198,7 +198,7 @@ int pqm_create_queue(struct process_queue_manager *pqm,
 		pqn->kq = NULL;
 		retval = dev->dqm->ops.create_queue(dev->dqm, q, &pdd->qpd,
 						&q->properties.vmid);
-		pr_debug("DQM returned %d for create_queue\n", retval);
+		pr_info("DQM returned %d for create_queue\n", retval);
 		print_queue(q);
 		break;
 
@@ -219,7 +219,7 @@ int pqm_create_queue(struct process_queue_manager *pqm,
 		pqn->kq = NULL;
 		retval = dev->dqm->ops.create_queue(dev->dqm, q, &pdd->qpd,
 						&q->properties.vmid);
-		pr_debug("DQM returned %d for create_queue\n", retval);
+		pr_info("DQM returned %d for create_queue\n", retval);
 		print_queue(q);
 		break;
 	case KFD_QUEUE_TYPE_DIQ:
@@ -244,13 +244,13 @@ int pqm_create_queue(struct process_queue_manager *pqm,
 		goto err_create_queue;
 	}
 
-	pr_debug("PQM After DQM create queue\n");
+	pr_info("PQM After DQM create queue\n");
 
 	list_add(&pqn->process_queue_list, &pqm->queues);
 
 	if (q) {
 		*properties = q->properties;
-		pr_debug("PQM done creating queue\n");
+		pr_info("PQM done creating queue\n");
 		print_queue_properties(properties);
 	}
 
@@ -332,7 +332,7 @@ int pqm_update_queue(struct process_queue_manager *pqm, unsigned int qid,
 
 	pqn = get_queue_by_qid(pqm, qid);
 	if (!pqn) {
-		pr_debug("No queue %d exists for update operation\n", qid);
+		pr_info("No queue %d exists for update operation\n", qid);
 		return -EFAULT;
 	}
 

@@ -139,7 +139,7 @@ static int __init rockchip_grf_init(void)
 	for (i = 0; i < grf_info->num_values; i++) {
 		const struct rockchip_grf_value *val = &grf_info->values[i];
 
-		pr_debug("%s: adjusting %s in %#6x to %#10x\n", __func__,
+		pr_info("%s: adjusting %s in %#6x to %#10x\n", __func__,
 			val->desc, val->reg, val->val);
 		ret = regmap_write(grf, val->reg, val->val);
 		if (ret < 0)

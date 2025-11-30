@@ -434,7 +434,7 @@ static unsigned ttm_dma_page_pool_free(struct dma_pool *pool, unsigned nr_free,
 		npages_to_free = NUM_PAGES_TO_ALLOC;
 #if 0
 	if (nr_free > 1) {
-		pr_debug("%s: (%s:%d) Attempting to free %d (%d) pages\n",
+		pr_info("%s: (%s:%d) Attempting to free %d (%d) pages\n",
 			 pool->dev_name, pool->name, current->pid,
 			 npages_to_free, nr_free);
 	}
@@ -738,7 +738,7 @@ static int ttm_dma_pool_alloc_new_pages(struct dma_pool *pool,
 	}
 
 	if (count > 1) {
-		pr_debug("%s: (%s:%d) Getting %d pages\n",
+		pr_info("%s: (%s:%d) Getting %d pages\n",
 			 pool->dev_name, pool->name, current->pid, count);
 	}
 
@@ -1042,7 +1042,7 @@ ttm_dma_pool_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 		shrink_pages = ttm_dma_page_pool_free(p->pool, nr_free, true);
 		freed += nr_free - shrink_pages;
 
-		pr_debug("%s: (%s:%d) Asked to shrink %d, have %d more to go\n",
+		pr_info("%s: (%s:%d) Asked to shrink %d, have %d more to go\n",
 			 p->pool->dev_name, p->pool->name, current->pid,
 			 nr_free, shrink_pages);
 	}

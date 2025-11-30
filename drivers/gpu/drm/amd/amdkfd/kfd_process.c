@@ -99,7 +99,7 @@ struct kfd_process *kfd_create_process(const struct task_struct *thread)
 	/* A prior open of /dev/kfd could have already created the process. */
 	process = find_process(thread);
 	if (process)
-		pr_debug("Process already found\n");
+		pr_info("Process already found\n");
 
 	if (!process)
 		process = create_process(thread);
@@ -163,14 +163,14 @@ static void kfd_process_wq_release(struct work_struct *work)
 
 	p = my_work->p;
 
-	pr_debug("Releasing process (pasid %d) in workqueue\n",
+	pr_info("Releasing process (pasid %d) in workqueue\n",
 			p->pasid);
 
 	mutex_lock(&p->mutex);
 
 	list_for_each_entry_safe(pdd, temp, &p->per_device_data,
 							per_device_list) {
-		pr_debug("Releasing pdd (topology id %d) for process (pasid %d) in workqueue\n",
+		pr_info("Releasing pdd (topology id %d) for process (pasid %d) in workqueue\n",
 				pdd->dev->id, p->pasid);
 
 		if (pdd->reset_wavefronts)
@@ -415,7 +415,7 @@ void kfd_unbind_process_from_device(struct kfd_dev *dev, unsigned int pasid)
 	if (!p)
 		return;
 
-	pr_debug("Unbinding process %d from IOMMU\n", pasid);
+	pr_info("Unbinding process %d from IOMMU\n", pasid);
 
 	if ((dev->dbgmgr) && (dev->dbgmgr->pasid == p->pasid))
 		kfd_dbgmgr_destroy(dev->dbgmgr);

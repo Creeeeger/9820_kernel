@@ -107,7 +107,7 @@ static int exynos_pd_power_on(struct generic_pm_domain *genpd)
 	DEBUG_PRINT_INFO("%s(%s)+\n", __func__, pd->name);
 
 	if (unlikely(!pd->pd_control)) {
-		pr_debug(EXYNOS_PD_PREFIX "%s is Logical sub power domain, dose not have to power on control\n", pd->name);
+		pr_info(EXYNOS_PD_PREFIX "%s is Logical sub power domain, dose not have to power on control\n", pd->name);
 		goto acc_unlock;
 	}
 
@@ -145,7 +145,7 @@ static int exynos_pd_power_off(struct generic_pm_domain *genpd)
 	DEBUG_PRINT_INFO("%s(%s)+\n", __func__, pd->name);
 
 	if (unlikely(!pd->pd_control)) {
-		pr_debug(EXYNOS_PD_PREFIX "%s is Logical sub power domain, dose not have to power off control\n", genpd->name);
+		pr_info(EXYNOS_PD_PREFIX "%s is Logical sub power domain, dose not have to power off control\n", genpd->name);
 		goto acc_unlock;
 	}
 

@@ -51,7 +51,7 @@
 
 #define PP_DBG_LOG(fmt, ...) \
 	do { \
-		pr_debug(fmt, ##__VA_ARGS__); \
+		pr_info(fmt, ##__VA_ARGS__); \
 	} while (0)
 
 

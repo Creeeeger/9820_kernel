@@ -368,7 +368,7 @@ int exynos_hiu_set_freq(unsigned int id, unsigned int req_freq)
 
 	data->cur_freq = req_freq;
 
-	pr_debug("exynos-hiu: set REQDVFS to HIU : %ukHz\n", req_freq);
+	pr_info("exynos-hiu: set REQDVFS to HIU : %ukHz\n", req_freq);
 
 	return 0;
 

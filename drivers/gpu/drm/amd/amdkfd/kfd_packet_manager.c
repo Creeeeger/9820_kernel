@@ -65,7 +65,7 @@ static void pm_calc_rlib_size(struct packet_manager *pm,
 	*over_subscription = false;
 	if ((process_count > 1) || queue_count > get_queues_num(pm->dqm)) {
 		*over_subscription = true;
-		pr_debug("Over subscribed runlist\n");
+		pr_info("Over subscribed runlist\n");
 	}
 
 	map_queue_size = sizeof(struct pm4_mes_map_queues);
@@ -80,7 +80,7 @@ static void pm_calc_rlib_size(struct packet_manager *pm,
 	if (*over_subscription)
 		*rlib_size += sizeof(struct pm4_mes_runlist);
 
-	pr_debug("runlist ib size %d\n", *rlib_size);
+	pr_info("runlist ib size %d\n", *rlib_size);
 }
 
 static int pm_allocate_runlist_ib(struct packet_manager *pm,
@@ -256,7 +256,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 
 	*rl_size_bytes = alloc_size_bytes;
 
-	pr_debug("Building runlist ib process count: %d queues count %d\n",
+	pr_info("Building runlist ib process count: %d queues count %d\n",
 		pm->dqm->processes_count, pm->dqm->queue_count);
 
 	/* build the run list ib packet */
@@ -264,7 +264,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 		qpd = cur->qpd;
 		/* build map process packet */
 		if (proccesses_mapped >= pm->dqm->processes_count) {
-			pr_debug("Not enough space left in runlist IB\n");
+			pr_info("Not enough space left in runlist IB\n");
 			pm_release_ib(pm);
 			return -ENOMEM;
 		}
@@ -281,7 +281,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 			if (!kq->queue->properties.is_active)
 				continue;
 
-			pr_debug("static_queue, mapping kernel q %d, is debug status %d\n",
+			pr_info("static_queue, mapping kernel q %d, is debug status %d\n",
 				kq->queue->queue, qpd->is_debug);
 
 			retval = pm_create_map_queue(pm,
@@ -300,7 +300,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 			if (!q->properties.is_active)
 				continue;
 
-			pr_debug("static_queue, mapping user queue %d, is debug status %d\n",
+			pr_info("static_queue, mapping user queue %d, is debug status %d\n",
 				q->queue, qpd->is_debug);
 
 			retval = pm_create_map_queue(pm,
@@ -317,7 +317,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 		}
 	}
 
-	pr_debug("Finished map process and queues to runlist\n");
+	pr_info("Finished map process and queues to runlist\n");
 
 	if (is_over_subscription)
 		retval = pm_create_runlist(pm, &rl_buffer[rl_wptr],
@@ -326,8 +326,8 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
 					true);
 
 	for (i = 0; i < alloc_size_bytes / sizeof(uint32_t); i++)
-		pr_debug("0x%2X ", rl_buffer[i]);
-	pr_debug("\n");
+		pr_info("0x%2X ", rl_buffer[i]);
+	pr_info("\n");
 
 	return retval;
 }
@@ -406,7 +406,7 @@ int pm_send_runlist(struct packet_manager *pm, struct list_head *dqm_queues)
 	if (retval)
 		goto fail_create_runlist_ib;
 
-	pr_debug("runlist IB address: 0x%llX\n", rl_gpu_ib_addr);
+	pr_info("runlist IB address: 0x%llX\n", rl_gpu_ib_addr);
 
 	packet_size_dwords = sizeof(struct pm4_mes_runlist) / sizeof(uint32_t);
 	mutex_lock(&pm->lock);
@@ -493,7 +493,7 @@ int pm_send_unmap_queue(struct packet_manager *pm, enum kfd_queue_type type,
 
 	packet = (struct pm4_mes_unmap_queues *)buffer;
 	memset(buffer, 0, sizeof(struct pm4_mes_unmap_queues));
-	pr_debug("static_queue: unmapping queues: mode is %d , reset is %d , type is %d\n",
+	pr_info("static_queue: unmapping queues: mode is %d , reset is %d , type is %d\n",
 		mode, reset, type);
 	packet->header.u32All = build_pm4_header(IT_UNMAP_QUEUES,
 					sizeof(struct pm4_mes_unmap_queues));
