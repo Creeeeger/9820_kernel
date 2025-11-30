@@ -1,14 +1,3 @@
-/*
- * SAMSUNG EXYNOS7885 SoC device tree source
- *
- * Copyright (c) 2018 Samsung Electronics Co., Ltd.
- *		http://www.samsung.com
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
-*/
-
 / {
 	/* mali */
     mali: mali@18500000 {
@@ -27,14 +16,14 @@
         gpu_dvfs_table_size = <16 8>; /*<row col>*/
         /*  8 columns      freq  down   up  stay  mif    little  middle   big  */
         gpu_dvfs_table = <
-                          910000    78  100   9  2093000 1456000       0 1820000
-                          858000    78  100   9  2093000 1456000       0 1820000
-                          806000    78  100   9  2093000 1456000       0 1820000
-                          754000    78  100   9  2093000 1456000       0 1820000
-                          702000    78  100   9  2093000 1456000       0 1820000
-                          676000    78   98   5  2093000 1456000       0 2080000
-                          650000    78   98   5  2093000 1456000       0 2080000
-                          598000    78   98   5  2093000 1456000       0 2080000
+                          910000    78  100   9  2093000 0       0 0
+                          858000    78  100   9  2093000 0       0 0
+                          806000    78  100   9  2093000 0       0 0
+                          754000    78  100   9  2093000 0       0 0
+                          702000    78  100   9  2093000 0       0 0
+                          676000    78   98   5  2093000 0       0 0
+                          650000    78   98   5  2093000 0       0 0
+                          598000    78   98   5  2093000 0       0 0
                           572000    78   98   5  1794000       0       0       0
                           433000    78   95   1  1352000       0       0       0
                           377000    78   90   1  1352000       0       0       0
@@ -50,14 +39,14 @@
         gpu_max_clock = <910000>;
         gpu_max_clock_limit = <910000>;
         gpu_min_clock = <100000>;
-		gpu_dvfs_start_clock = <260000>;
-		gpu_dvfs_bl_config_clock = <156000>;
-		gpu_default_voltage = <800000>;
+		gpu_dvfs_start_clock = <100000>;
+		gpu_dvfs_bl_config_clock = <100000>;
+		gpu_default_voltage = <537500>;
 		gpu_cold_minimum_vol = <0>;
 		gpu_voltage_offset_margin = <37500>;
 		gpu_tmu_control = <1>;
-		gpu_temp_throttling_level_num = <6>;
-		gpu_temp_throttling = <754000 650000 455000 325000 260000 156000>;
+		gpu_temp_throttling_level_num = <1>;
+		gpu_temp_throttling = <650000>;
 		gpu_power_coeff = <625>;
 		gpu_dvfs_time_interval = <5>; /*1 tick : 10ms*/
 		gpu_default_wakeup_lock = <1>;
@@ -71,13 +60,13 @@
 		gpu_pmqos_int_disable = <1>;
 		gpu_pmqos_mif_max_clock = <2094000>;
 		gpu_pmqos_mif_max_clock_base = <650000>;
-		gpu_cl_dvfs_start_base = <377000>;
-		gpu_debug_level = <3>; /*DEBUG(1) INFO(2) WARNING(3) ERROR(4)*/
+		gpu_cl_dvfs_start_base = <100000>;
+		gpu_debug_level = <1>; /*DEBUG(1) INFO(2) WARNING(3) ERROR(4)*/
 		gpu_trace_level = <8>; /*TRACE_ALL*/
-		gpu_mo_min_clock = <377000>;
+		gpu_mo_min_clock = <100000>;
 		gpu_boost_gpu_min_lock = <0>;
 		gpu_boost_egl_min_lock = <1872000>;
-		gpu_vk_boost_max_lock = <325000>;
+		gpu_vk_boost_max_lock = <910000>;
 		gpu_vk_boost_mif_min_lock = <1014000>;
 		gpu_bts_support = <1>;
 		gpu_asv_cali_lock_val = <0>; /*Should check this value when MALI_ASV_CALIBRATION_SUPPORT is enabled*/
