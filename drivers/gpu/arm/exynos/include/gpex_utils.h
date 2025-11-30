@@ -24,6 +24,7 @@
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/sysfs.h>
+#include <linux/printk.h>
 
 #define CTX_NAME_SIZE 32
 
@@ -101,20 +102,20 @@ enum { DEBUG = 1, INFO, WARNING, ERROR };
 
 #ifndef GPU_LOG
 #define GPU_LOG(level, msg, args...)                                                               \
-	do {                                                                                       \
-		if (level >= gpex_utils_get_debug_level()) {                                       \
-			printk(KERN_INFO "[G3D] " msg, ##args);                                    \
-		}                                                                                  \
-	} while (0)
+        do {                                                                                       \
+                if (level >= gpex_utils_get_debug_level()) {                                       \
+                        pr_info("[G3D] " msg, ##args);                                            \
+                }                                                                                  \
+        } while (0)
 #endif
 
 #define DUMMY 0
 #define GPU_LOG_DETAILED(level, code, gpu_addr, info_val, msg, args...)                            \
-	do {                                                                                       \
-		if (level >= gpex_utils_get_debug_level()) {                                       \
-			printk(KERN_INFO "[G3D] " msg, ##args);                                    \
-		}                                                                                  \
-	} while (0)
+        do {                                                                                       \
+                if (level >= gpex_utils_get_debug_level()) {                                       \
+                        pr_info("[G3D] " msg, ##args);                                            \
+                }                                                                                  \
+        } while (0)
 
 #define CREATE_SYSFS_DEVICE_READ_FUNCTION(__fname)                                                 \
 	GPEX_STATIC ssize_t __fname##_sysfs_device(struct device *dev,                             \
