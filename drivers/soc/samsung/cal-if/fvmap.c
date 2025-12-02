@@ -741,7 +741,7 @@ static void fvmap_dump_ratevolt_io(const char *tag, int idx, void __iomem *base,
 
 static void fvmap_dump_members_io(const char *tag, int idx, void __iomem *base,
                                   u16 mem_off, int num_members, int num_pll,
-                                  const u16 block_addr[BLOCK_ADDR_SIZE]) {
+                                  volatile unsigned short block_addr[BLOCK_ADDR_SIZE]) {
     int j, dump_mem = min(num_members, FVMAP_DUMP_MAX_MEM);
 
     pr_info("FVMAP[%s] idx=%d members_off=0x%x num_members=%d (dump=%d) "
