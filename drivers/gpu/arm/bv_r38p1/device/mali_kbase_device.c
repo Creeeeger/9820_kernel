@@ -73,7 +73,14 @@ static int kbase_dev_nr;
 
 struct kbase_device *kbase_device_alloc(void)
 {
-	return kzalloc(sizeof(struct kbase_device), GFP_KERNEL);
+	struct kbase_device *kbdev;
+
+	kbdev = kzalloc(sizeof(struct kbase_device), GFP_KERNEL);
+	if (kbdev)
+		pr_info("kbase: allocated kbase_device %p size=%zu\n",
+			kbdev, sizeof(*kbdev));
+
+	return kbdev;
 }
 
 /**
@@ -323,6 +330,16 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 			"Unable to register OOM notifier for Mali - but will continue\n");
 		kbdev->oom_notifier_block.notifier_call = NULL;
 	}
+
+	pr_info("kbase: misc_init dev=%s kbdev=%p nr_hw_as=%u cores=%u core_groups=%u job_slots=%u va_bits=%u pa_bits=%u reset_timeout_ms=%u\n",
+		kbdev->devname, kbdev,
+		kbdev->nr_hw_address_spaces,
+		kbdev->gpu_props.num_cores,
+		kbdev->gpu_props.num_core_groups,
+		kbdev->gpu_props.num_job_slots,
+		kbdev->gpu_props.mmu.va_bits,
+		kbdev->gpu_props.mmu.pa_bits,
+		kbdev->reset_timeout_ms);
 	return 0;
 
 term_as:
@@ -346,6 +363,9 @@ void kbase_device_misc_term(struct kbase_device *kbdev)
 
 	if (kbdev->oom_notifier_block.notifier_call)
 		unregister_oom_notifier(&kbdev->oom_notifier_block);
+
+	pr_info("kbase: misc_term dev=%s kbdev=%p\n",
+		kbdev->devname, kbdev);
 }
 
 void kbase_device_free(struct kbase_device *kbdev)
@@ -358,6 +378,9 @@ void kbase_device_id_init(struct kbase_device *kbdev)
 	scnprintf(kbdev->devname, DEVNAME_SIZE, "%s%d", kbase_drv_name,
 			kbase_dev_nr);
 	kbdev->id = kbase_dev_nr;
+
+	pr_info("kbase: device_id_init kbdev=%p id=%d name=%s\n",
+		kbdev, kbdev->id, kbdev->devname);
 }
 
 void kbase_increment_device_id(void)
@@ -454,6 +477,9 @@ int kbase_device_list_init(struct kbase_device *kbdev)
 	dev_list = kbase_device_get_list();
 	list_add(&kbdev->entry, &kbase_dev_list);
 	kbase_device_put_list(dev_list);
+
+	pr_info("kbase: device_list_init kbdev=%p dev=%s list_head=%p\n",
+		kbdev, kbdev->devname, dev_list);
 
 	return 0;
 }
