@@ -509,8 +509,6 @@ int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 		size_t other;
 
 		if (!plans[override_idx].entry)
-            cal_warn("id=0x%x override[%zu] rate=%u not found in LUT -> ignored\n",
-                     id, override_idx, entry->rate_khz);
 			continue;
 
 		for (other = override_idx + 1; other < override_count; other++) {

@@ -45,27 +45,7 @@ static void dump_ipc_config(const char *fn, const char *tag,
               fn, tag, i, cfg->cmd[i], cfg->cmd[i]);
 }
 
-static void dump_acpm_state(const char *where)
-{
-    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: acpm_dvfs.dev=%p ch_num=%u size=%u\n",
-          where, acpm_dvfs.dev, acpm_dvfs.ch_num, acpm_dvfs.size);
-    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: acpm_noti_mif.dev=%p ch_num=%u size=%u\n",
-          where, acpm_noti_mif.dev, acpm_noti_mif.ch_num, acpm_noti_mif.size);
-
-    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: cpu_coldtemp=%p cpu_len=%d gpu_coldtemp=%p gpu_len=%d cpu_coldtemp_en=%d\n",
           where,
-          acpm_dvfs.cpu_coldtemp, acpm_dvfs.cpu_len,
-          acpm_dvfs.gpu_coldtemp, acpm_dvfs.gpu_len,
-          !!acpm_dvfs.cpu_coldtemp);
-}
-
-static const char *safe_margin_name(int margin_id)
-{
-    if (margin_id < 0 || margin_id >= MAX_MARGIN_ID)
-        return "MARGIN_ID_OOR";
-    return margin_list[margin_id];
-}
-
 int exynos_acpm_set_rate(unsigned int id, unsigned long rate, const char *name)
 {
 	struct ipc_config config;
@@ -123,15 +103,6 @@ int exynos_acpm_set_init_freq(unsigned int dfs_id, unsigned long freq)
 	config.cmd[2] = DATA_INIT;
 	config.cmd[3] = SET_INIT_FREQ;
     
-    dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
-
-    if (ret)
-        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ret=%d\n",
-             __func__, id, rate, latency, ret);
-    else
-        ACPM_DBG(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ok\n",
-             __func__, id, rate, latency);
-
 	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
 	after = sched_clock();

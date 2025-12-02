@@ -17,6 +17,12 @@
 #include <soc/samsung/ect_parser.h>
 #include "cmucal.h"
 
+#define ASV_TAG "asv"
+#define asv_info(fmt, ...) pr_info("[" ASV_TAG "] %s: " fmt, __func__, ##__VA_ARGS__)
+#define asv_dbg(fmt, ...)  pr_info("[" ASV_TAG "] %s: " fmt, __func__, ##__VA_ARGS__)
+#define asv_warn(fmt, ...) pr_info("[" ASV_TAG "] %s: " fmt, __func__, ##__VA_ARGS__)
+#define asv_err(fmt, ...)  pr_info("[" ASV_TAG "] %s: " fmt, __func__, ##__VA_ARGS__)
+
 static void asv_set_grp(unsigned int id, unsigned int asvgrp)
 {
 	if (exynos_cal_asv_ops.set_grp)
@@ -62,115 +68,172 @@ static int asv_rcc_set_table(void)
 
 static void asv_voltage_init_table(struct asv_table_list **asv_table, char *name)
 {
-	struct ect_voltage_domain *domain = NULL;
-	struct ect_voltage_table *table = NULL;
-	struct asv_table_entry *asv_entry = NULL;
-	struct ect_margin_domain *margin_domain = NULL;
-	void *asv_block = NULL, *margin_block = NULL;
-	int i =0, j = 0, k = 0;
+    struct ect_voltage_domain *domain = NULL;
+    struct ect_voltage_table *table = NULL;
+    struct asv_table_entry *asv_entry = NULL;
+    struct ect_margin_domain *margin_domain = NULL;
+    void *asv_block = NULL, *margin_block = NULL;
+    int i = 0, j = 0, k = 0;
 
-	asv_block = ect_get_block("ASV");
-	if (asv_block == NULL)
-		return;
+    asv_block = ect_get_block("ASV");
+    if (!asv_block) {
+        asv_warn("ECT block ASV missing (domain=%s)\n", name);
+        return;
+    }
 
-	margin_block = ect_get_block("MARGIN");
+    margin_block = ect_get_block("MARGIN");
+    if (!margin_block)
+        asv_dbg("ECT block MARGIN missing (domain=%s)\n", name);
 
-	domain = ect_asv_get_domain(asv_block, name);
-	if (domain == NULL)
-		return;
+    domain = ect_asv_get_domain(asv_block, name);
+    if (!domain) {
+        asv_warn("ASV domain not found: %s\n", name);
+        return;
+    }
 
-	if (margin_block)
-		margin_domain = ect_margin_get_domain(margin_block, name);
+    if (margin_block)
+        margin_domain = ect_margin_get_domain(margin_block, name);
 
-	pr_info("[asv] initializing voltage table for domain %s\n", name);
+    asv_info("init volt table domain=%s tables=%u levels=%u groups=%u\n",
+             name, domain->num_of_table, domain->num_of_level, domain->num_of_group);
 
-	*asv_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
-	if (*asv_table == NULL)
-		return;
+    if (margin_domain)
+        asv_info("margin domain=%s groups=%u volt_step=%u has_offset=%d has_offset_compact=%d\n",
+                 name, margin_domain->num_of_group, margin_domain->volt_step,
+                 !!margin_domain->offset, !!margin_domain->offset_compact);
+    else
+        asv_dbg("no margin domain for %s\n", name);
 
-	for (i = 0; i < domain->num_of_table; ++i) {
-		table = &domain->table_list[i];
+    *asv_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
+    if (!*asv_table) {
+        asv_err("kzalloc asv_table failed domain=%s tables=%u\n", name, domain->num_of_table);
+        return;
+    }
 
-		(*asv_table)[i].table_size = domain->num_of_table;
-		(*asv_table)[i].table = kzalloc(sizeof(struct asv_table_entry) * domain->num_of_level, GFP_KERNEL);
-		if ((*asv_table)[i].table == NULL)
-			return;
+    for (i = 0; i < domain->num_of_table; ++i) {
+        table = &domain->table_list[i];
 
-		for (j = 0; j < domain->num_of_level; ++j) {
-			asv_entry = &(*asv_table)[i].table[j];
+        asv_dbg("domain=%s table=%d volt_step=%u src:voltages=%d voltages_step=%d\n",
+                name, i, table->volt_step, !!table->voltages, !!table->voltages_step);
 
-			asv_entry->index = domain->level_list[j];
-			asv_entry->voltage = kzalloc(sizeof(unsigned int) * domain->num_of_group, GFP_KERNEL);
+        (*asv_table)[i].table_size = domain->num_of_table;
+        (*asv_table)[i].table = kzalloc(sizeof(struct asv_table_entry) * domain->num_of_level, GFP_KERNEL);
+        if (!(*asv_table)[i].table) {
+            asv_err("kzalloc table entries failed domain=%s table=%d levels=%u\n",
+                    name, i, domain->num_of_level);
+            return;
+        }
 
-			for (k = 0; k < domain->num_of_group; ++k) {
-				if (table->voltages != NULL)
-					asv_entry->voltage[k] = table->voltages[j * domain->num_of_group + k];
-				else if (table->voltages_step != NULL)
-					asv_entry->voltage[k] = table->voltages_step[j * domain->num_of_group + k] * table->volt_step;
+        for (j = 0; j < domain->num_of_level; ++j) {
+            asv_entry = &(*asv_table)[i].table[j];
 
-				if (margin_domain != NULL) {
-					if (margin_domain->offset != NULL)
-						asv_entry->voltage[k] += margin_domain->offset[j * margin_domain->num_of_group + k];
-					else
-						asv_entry->voltage[k] += margin_domain->offset_compact[j * margin_domain->num_of_group + k] * margin_domain->volt_step;
-				}
+            asv_entry->index = domain->level_list[j];
+            asv_entry->voltage = kzalloc(sizeof(unsigned int) * domain->num_of_group, GFP_KERNEL);
+            if (!asv_entry->voltage) {
+                asv_err("kzalloc voltage vector failed domain=%s table=%d lv=%d groups=%u\n",
+                        name, i, j, domain->num_of_group);
+                return;
+            }
 
-				pr_info("[asv] %s table=%d lv=%d grp=%d idx=%u volt_uV=%u\n",
-					name, i, j, k, asv_entry->index,
-					asv_entry->voltage[k]);
-			}
-		}
-	}
+            for (k = 0; k < domain->num_of_group; ++k) {
+                u32 base_uv = 0;
+                s32 margin_uv = 0;
+
+                if (table->voltages)
+                    base_uv = table->voltages[j * domain->num_of_group + k];
+                else if (table->voltages_step)
+                    base_uv = table->voltages_step[j * domain->num_of_group + k] * table->volt_step;
+                else
+                    asv_warn("domain=%s table=%d has no voltage source\n", name, i);
+
+                if (margin_domain) {
+                    if (margin_domain->offset)
+                        margin_uv = margin_domain->offset[j * margin_domain->num_of_group + k];
+                    else if (margin_domain->offset_compact)
+                        margin_uv = margin_domain->offset_compact[j * margin_domain->num_of_group + k] * margin_domain->volt_step;
+                }
+
+                asv_entry->voltage[k] = base_uv + margin_uv;
+
+                /* summary as info, details as debug */
+                asv_dbg("%s table=%d lv=%d grp=%d idx=%u base_uV=%u margin_uV=%d final_uV=%u\n",
+                        name, i, j, k, asv_entry->index, base_uv, margin_uv, asv_entry->voltage[k]);
+            }
+        }
+    }
 }
 
 static void asv_rcc_init_table(struct asv_table_list **rcc_table, char *name)
 {
-	struct ect_rcc_domain *domain = NULL;
-	struct ect_rcc_table *table = NULL;
-	struct asv_table_entry *rcc_entry = NULL;
-	void *rcc_block = NULL;
-	int i = 0, j = 0, k = 0;
+    struct ect_rcc_domain *domain = NULL;
+    struct ect_rcc_table *table = NULL;
+    struct asv_table_entry *rcc_entry = NULL;
+    void *rcc_block = NULL;
+    int i = 0, j = 0, k = 0;
 
-	rcc_block = ect_get_block("RCC");
-	if (rcc_block == NULL)
-		return;
+    rcc_block = ect_get_block("RCC");
+    if (!rcc_block) {
+        asv_warn("ECT block RCC missing (domain=%s)\n", name);
+        return;
+    }
 
-	domain = ect_rcc_get_domain(rcc_block, name);
-	if (domain == NULL)
-		return;
+    domain = ect_rcc_get_domain(rcc_block, name);
+    if (!domain) {
+        asv_dbg("RCC domain not found: %s\n", name);
+        return;
+    }
 
-	pr_info("[asv] initializing RCC table for domain %s\n", name);
+    asv_info("init RCC table domain=%s tables=%u levels=%u groups=%u\n",
+             name, domain->num_of_table, domain->num_of_level, domain->num_of_group);
 
-	*rcc_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
-	if (*rcc_table == NULL)
-		return;
+    *rcc_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
+    if (!*rcc_table) {
+        asv_err("kzalloc rcc_table failed domain=%s tables=%u\n", name, domain->num_of_table);
+        return;
+    }
 
-	for (i = 0; i < domain->num_of_table; ++i) {
-		table = &domain->table_list[i];
+    for (i = 0; i < domain->num_of_table; ++i) {
+        table = &domain->table_list[i];
 
-		(*rcc_table)[i].table_size = domain->num_of_table;
-		(*rcc_table)[i].table = kzalloc(sizeof(struct asv_table_entry) * domain->num_of_level, GFP_KERNEL);
-		if ((*rcc_table)[i].table == NULL)
-			return;
+        asv_dbg("domain=%s table=%d src:rcc=%d rcc_compact=%d\n",
+                name, i, !!table->rcc, !!table->rcc_compact);
 
-		for (j = 0; j < domain->num_of_level; ++j) {
-			rcc_entry = &(*rcc_table)[i].table[j];
+        (*rcc_table)[i].table_size = domain->num_of_table;
+        (*rcc_table)[i].table = kzalloc(sizeof(struct asv_table_entry) * domain->num_of_level, GFP_KERNEL);
+        if (!(*rcc_table)[i].table) {
+            asv_err("kzalloc RCC entries failed domain=%s table=%d levels=%u\n",
+                    name, i, domain->num_of_level);
+            return;
+        }
 
-			rcc_entry->index = domain->level_list[j];
-			rcc_entry->voltage = kzalloc(sizeof(unsigned int) * domain->num_of_group, GFP_KERNEL);
+        for (j = 0; j < domain->num_of_level; ++j) {
+            rcc_entry = &(*rcc_table)[i].table[j];
 
-			for (k = 0; k < domain->num_of_group; ++k) {
-				if (table->rcc != NULL)
-					rcc_entry->voltage[k] = table->rcc[j * domain->num_of_group + k];
-				else
-					rcc_entry->voltage[k] = table->rcc_compact[j * domain->num_of_group + k];
+            rcc_entry->index = domain->level_list[j];
+            rcc_entry->voltage = kzalloc(sizeof(unsigned int) * domain->num_of_group, GFP_KERNEL);
+            if (!rcc_entry->voltage) {
+                asv_err("kzalloc RCC vector failed domain=%s table=%d lv=%d groups=%u\n",
+                        name, i, j, domain->num_of_group);
+                return;
+            }
 
-				pr_info("[asv] RCC %s table=%d lv=%d grp=%d idx=%u volt_uV=%u\n",
-					name, i, j, k, rcc_entry->index,
-					rcc_entry->voltage[k]);
-			}
-		}
-	}
+            for (k = 0; k < domain->num_of_group; ++k) {
+                u32 v = 0;
+
+                if (table->rcc)
+                    v = table->rcc[j * domain->num_of_group + k];
+                else if (table->rcc_compact)
+                    v = table->rcc_compact[j * domain->num_of_group + k];
+                else
+                    asv_warn("domain=%s table=%d has no rcc source\n", name, i);
+
+                rcc_entry->voltage[k] = v;
+
+                asv_dbg("RCC %s table=%d lv=%d grp=%d idx=%u val=%u\n",
+                        name, i, j, k, rcc_entry->index, v);
+            }
+        }
+    }
 }
 
 static void asv_voltage_table_init(void)

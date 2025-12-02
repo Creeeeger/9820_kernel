@@ -19,10 +19,9 @@
 #include <linux/io.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
-#include <linux/hex_dump.h>
 
-#define FVMAP_DUMP_MAX_LV   2048
-#define FVMAP_DUMP_MAX_MEM  2048
+#define FVMAP_DUMP_MAX_LV 2048
+#define FVMAP_DUMP_MAX_MEM 2048
 
 #define FVMAP_SIZE (SZ_8K)
 #define STEP_UV (6250)
@@ -672,48 +671,44 @@ static const struct attribute_group percent_margin_group = {
     .attrs = percent_margin_attrs,
 };
 
-static inline void __iomem *io_ptr_add(void __iomem *base, u32 byte_off)
-{
+static inline void __iomem *io_ptr_add(void __iomem *base, u32 byte_off) {
     return (void __iomem *)((u8 __iomem *)base + byte_off);
 }
 
 static void fvmap_dump_header_entry(const char *tag, int idx,
-                                    const struct fvmap_header *h)
-{
-    pr_info("FVMAP[%s] idx=%d dvfs_type=%u num_lv=%u members=%u pll=%u mux=%u div=%u gear=%u init_lv=%u gate=%u\n",
+                                    const struct fvmap_header *h) {
+    pr_info("FVMAP[%s] idx=%d dvfs_type=%u num_lv=%u members=%u pll=%u mux=%u "
+            "div=%u gear=%u init_lv=%u gate=%u\n",
             tag, idx, h->dvfs_type, h->num_of_lv, h->num_of_members,
             h->num_of_pll, h->num_of_mux, h->num_of_div, h->gearratio,
             h->init_lv, h->num_of_gate);
 
-    pr_info("FVMAP[%s] idx=%d reserved[0]=0x%x reserved[1]=0x%x\n",
-            tag, idx, h->reserved[0], h->reserved[1]);
+    pr_info("FVMAP[%s] idx=%d reserved[0]=0x%x reserved[1]=0x%x\n", tag, idx,
+            h->reserved[0], h->reserved[1]);
 
-    pr_info("FVMAP[%s] idx=%d block_addr[0..2]=0x%x 0x%x 0x%x\n",
-            tag, idx, h->block_addr[0], h->block_addr[1], h->block_addr[2]);
+    pr_info("FVMAP[%s] idx=%d block_addr[0..2]=0x%x 0x%x 0x%x\n", tag, idx,
+            h->block_addr[0], h->block_addr[1], h->block_addr[2]);
 
-    pr_info("FVMAP[%s] idx=%d offsets: o_members=0x%x o_ratevolt=0x%x o_tables=0x%x\n",
+    pr_info("FVMAP[%s] idx=%d offsets: o_members=0x%x o_ratevolt=0x%x "
+            "o_tables=0x%x\n",
             tag, idx, h->o_members, h->o_ratevolt, h->o_tables);
 }
 
 /* Safe: copy header entry from __iomem then dump */
 static void fvmap_dump_header_entry_io(const char *tag, int idx,
-                                       void __iomem *base, u32 byte_off)
-{
+                                       void __iomem *base, u32 byte_off) {
     struct fvmap_header tmp;
 
     memcpy_fromio(&tmp, io_ptr_add(base, byte_off), sizeof(tmp));
     fvmap_dump_header_entry(tag, idx, &tmp);
 
     /* Optional: raw bytes */
-    print_hex_dump(KERN_INFO, "FVMAP_HDR_BYTES: ",
-                   DUMP_PREFIX_OFFSET, 16, 4,
+    print_hex_dump(KERN_INFO, "FVMAP_HDR_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
                    &tmp, sizeof(tmp), false);
 }
 
-static void fvmap_dump_ratevolt_io(const char *tag, int idx,
-                                   void __iomem *base, u32 rv_off,
-                                   int num_lv)
-{
+static void fvmap_dump_ratevolt_io(const char *tag, int idx, void __iomem *base,
+                                   u32 rv_off, int num_lv) {
     int j, dump_lv;
     struct rate_volt_header *tmp;
     size_t bytes;
@@ -723,120 +718,109 @@ static void fvmap_dump_ratevolt_io(const char *tag, int idx,
 
     tmp = kzalloc(bytes, GFP_KERNEL);
     if (!tmp) {
-        pr_err("FVMAP[%s] idx=%d ratevolt: kzalloc(%zu) failed\n", tag, idx, bytes);
+        pr_err("FVMAP[%s] idx=%d ratevolt: kzalloc(%zu) failed\n", tag, idx,
+               bytes);
         return;
     }
 
     memcpy_fromio(tmp, io_ptr_add(base, rv_off), bytes);
 
-    pr_info("FVMAP[%s] idx=%d ratevolt_off=0x%x num_lv=%d (dump=%d)\n",
-            tag, idx, rv_off, num_lv, dump_lv);
+    pr_info("FVMAP[%s] idx=%d ratevolt_off=0x%x num_lv=%d (dump=%d)\n", tag,
+            idx, rv_off, num_lv, dump_lv);
 
     for (j = 0; j < dump_lv; j++)
-        pr_info("FVMAP[%s] idx=%d lv=%d rate=%u volt_uV=%u\n",
-                tag, idx, j, tmp->table[j].rate, tmp->table[j].volt);
+        pr_info("FVMAP[%s] idx=%d lv=%d rate=%u volt_uV=%u\n", tag, idx, j,
+                tmp->table[j].rate, tmp->table[j].volt);
 
     /* Optional: raw bytes of the copied blob */
-    print_hex_dump(KERN_INFO, "FVMAP_RV_BYTES: ",
-                   DUMP_PREFIX_OFFSET, 16, 4,
+    print_hex_dump(KERN_INFO, "FVMAP_RV_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
                    tmp, bytes, false);
 
     kfree(tmp);
 }
 
-static void fvmap_dump_members_io(const char *tag, int idx,
-                                  void __iomem *base, u32 mem_off,
-                                  int num_members, int num_pll,
-                                  const u32 block_addr[3])
-{
-    int j, dump_mem;
-    struct clocks *tmp;
-    size_t bytes;
+static void fvmap_dump_members_io(const char *tag, int idx, void __iomem *base,
+                                  u16 mem_off, int num_members, int num_pll,
+                                  const u16 block_addr[BLOCK_ADDR_SIZE]) {
+    int j, dump_mem = min(num_members, FVMAP_DUMP_MAX_MEM);
 
-    dump_mem = min(num_members, FVMAP_DUMP_MAX_MEM);
-
-    /* We don’t know if clocks->addr[] is flexible or fixed in your tree;
-       this prints conservatively by copying enough for dump_mem entries. */
-    bytes = sizeof(*tmp) + (size_t)dump_mem * sizeof(tmp->addr[0]);
-
-    tmp = kzalloc(bytes, GFP_KERNEL);
-    if (!tmp) {
-        pr_err("FVMAP[%s] idx=%d members: kzalloc(%zu) failed\n", tag, idx, bytes);
-        return;
-    }
-
-    memcpy_fromio(tmp, io_ptr_add(base, mem_off), bytes);
-
-    pr_info("FVMAP[%s] idx=%d members_off=0x%x num_members=%d (dump=%d) num_pll=%d\n",
+    pr_info("FVMAP[%s] idx=%d members_off=0x%x num_members=%d (dump=%d) "
+            "num_pll=%d\n",
             tag, idx, mem_off, num_members, dump_mem, num_pll);
 
     for (j = 0; j < dump_mem; j++) {
-        u32 raw = tmp->addr[j];
-        u32 member_addr;
-        u32 blk_idx;
+        u32 raw;
+        u32 lo, member_addr, blk_idx;
+
+        raw = readl_relaxed((void __iomem *)((u8 __iomem *)base + mem_off +
+                                             offsetof(struct clocks, addr) +
+                                             j * sizeof(u32)));
 
         if (j < num_pll) {
-            /* For PLL path you later treat tmp->addr[j] as pointing to a pll_header.
-               We print the raw pointer/offset here; decode will happen in main code. */
-            pr_info("FVMAP[%s] idx=%d member=%d clocks.addr=0x%x (PLL entry)\n",
+            pr_info("FVMAP[%s] idx=%d member=%d clocks.addr_raw=0x%08x (PLL "
+                    "entry)\n",
                     tag, idx, j, raw);
+            continue;
+        }
+
+        lo = (raw & ~0x3u) & 0xffffu;
+        blk_idx = raw & 0x3u;
+
+        pr_info("FVMAP[%s] idx=%d member=%d raw=0x%08x lo=0x%04x blk_idx=%u "
+                "blk_base_u16=0x%04x\n",
+                tag, idx, j, raw, lo, blk_idx,
+                (blk_idx < BLOCK_ADDR_SIZE) ? block_addr[blk_idx] : 0);
+
+        if (blk_idx < BLOCK_ADDR_SIZE) {
+            u32 hi = ((u32)block_addr[blk_idx]) << 16;
+            member_addr = (hi | lo);
+            member_addr -= 0x90000000u;
+
+            pr_info("FVMAP[%s] idx=%d member=%d decoded member_addr=0x%08x\n",
+                    tag, idx, j, member_addr);
         } else {
-            member_addr = (raw & ~0x3) & 0xffff;
-            blk_idx = raw & 0x3;
-
-            pr_info("FVMAP[%s] idx=%d member=%d clocks.addr=0x%x member_addr_lo=0x%x blk_idx=%u blk_base=0x%x\n",
-                    tag, idx, j, raw, member_addr, blk_idx,
-                    (blk_idx < 3) ? block_addr[blk_idx] : 0);
-
-            if (blk_idx < 3) {
-                member_addr |= (block_addr[blk_idx] << 16);
-                member_addr -= 0x90000000;
-                pr_info("FVMAP[%s] idx=%d member=%d decoded member_addr=0x%x\n",
-                        tag, idx, j, member_addr);
-            }
+            pr_err("FVMAP[%s] idx=%d member=%d blk_idx=%u out of range "
+                   "(BLOCK_ADDR_SIZE=%d)\n",
+                   tag, idx, j, blk_idx, BLOCK_ADDR_SIZE);
         }
     }
-
-    print_hex_dump(KERN_INFO, "FVMAP_MEM_BYTES: ",
-                   DUMP_PREFIX_OFFSET, 16, 4,
-                   tmp, bytes, false);
-
-    kfree(tmp);
 }
 
-static void fvmap_dump_params_io(const char *tag, int idx,
-                                 void __iomem *base, u32 tbl_off,
-                                 int num_lv, int num_members)
-{
+static void fvmap_dump_params_io(const char *tag, int idx, void __iomem *base,
+                                 u32 tbl_off, int num_lv, int num_members) {
     int j, k, dump_lv, dump_mem;
     struct dvfs_table *tmp;
     size_t total, bytes;
 
-    dump_lv  = min(num_lv, FVMAP_DUMP_MAX_LV);
+    dump_lv = min(num_lv, FVMAP_DUMP_MAX_LV);
     dump_mem = min(num_members, FVMAP_DUMP_MAX_MEM);
     total = (size_t)dump_lv * (size_t)dump_mem;
 
-    /* dvfs_table layout varies; this assumes dvfs_table has val[] following header.
-       If dvfs_table has only val[], sizeof(*tmp) already includes val[0] or not depending on definition.
-       This is still typically what your existing code relies on (old_param->val[param_idx]). */
+    /* dvfs_table layout varies; this assumes dvfs_table has val[] following
+       header. If dvfs_table has only val[], sizeof(*tmp) already includes
+       val[0] or not depending on definition. This is still typically what your
+       existing code relies on (old_param->val[param_idx]). */
     bytes = sizeof(*tmp) + total * sizeof(tmp->val[0]);
 
     tmp = kzalloc(bytes, GFP_KERNEL);
     if (!tmp) {
-        pr_err("FVMAP[%s] idx=%d params: kzalloc(%zu) failed\n", tag, idx, bytes);
+        pr_err("FVMAP[%s] idx=%d params: kzalloc(%zu) failed\n", tag, idx,
+               bytes);
         return;
     }
 
     memcpy_fromio(tmp, io_ptr_add(base, tbl_off), bytes);
 
-    pr_info("FVMAP[%s] idx=%d tables_off=0x%x lv=%d(mem=%d) dump_lv=%d dump_mem=%d\n",
+    pr_info("FVMAP[%s] idx=%d tables_off=0x%x lv=%d(mem=%d) dump_lv=%d "
+            "dump_mem=%d\n",
             tag, idx, tbl_off, num_lv, num_members, dump_lv, dump_mem);
 
     for (j = 0; j < dump_lv; j++) {
         for (k = 0; k < dump_mem; k++) {
             u32 param_idx = (u32)(num_members * j + k);
-            /* When dumping only part of members, param_idx still uses full stride (num_members),
-               but our copied buffer only includes dump_mem*dump_lv; so we also compute a local index. */
+            /* When dumping only part of members, param_idx still uses full
+               stride (num_members), but our copied buffer only includes
+               dump_mem*dump_lv; so we also compute a local index. */
             u32 local_idx = (u32)(dump_mem * j + k);
 
             pr_info("FVMAP[%s] idx=%d lv=%d member=%d param_idx=%u val=%d\n",
@@ -844,13 +828,11 @@ static void fvmap_dump_params_io(const char *tag, int idx,
         }
     }
 
-    print_hex_dump(KERN_INFO, "FVMAP_TBL_BYTES: ",
-                   DUMP_PREFIX_OFFSET, 16, 4,
+    print_hex_dump(KERN_INFO, "FVMAP_TBL_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
                    tmp, bytes, false);
 
     kfree(tmp);
 }
-
 
 static void fvmap_copy_from_sram(void __iomem *map_base,
                                  void __iomem *sram_base) {
@@ -895,29 +877,34 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
         fvmap_header[i].o_ratevolt = header[i].o_ratevolt;
         fvmap_header[i].o_tables = header[i].o_tables;
 
-        
         /* Dump SRAM header entry (source) and map header entry (dest) */
-        fvmap_dump_header_entry("MAP(after_copy)", i, (const struct fvmap_header *)&fvmap_header[i]);
-        fvmap_dump_header_entry_io("SRAM(source)", i, sram_base, i * sizeof(struct fvmap_header));
+        fvmap_dump_header_entry("MAP(after_copy)", i,
+                                (const struct fvmap_header *)&fvmap_header[i]);
+        fvmap_dump_header_entry_io("SRAM(source)", i, sram_base,
+                                   i * sizeof(struct fvmap_header));
 
         /* Dump members, rate/volt and tables from BOTH regions */
         fvmap_dump_members_io("SRAM", i, sram_base, fvmap_header[i].o_members,
-                              fvmap_header[i].num_of_members, fvmap_header[i].num_of_pll,
+                              fvmap_header[i].num_of_members,
+                              fvmap_header[i].num_of_pll,
                               fvmap_header[i].block_addr);
 
         fvmap_dump_members_io("MAP", i, map_base, fvmap_header[i].o_members,
-                              fvmap_header[i].num_of_members, fvmap_header[i].num_of_pll,
+                              fvmap_header[i].num_of_members,
+                              fvmap_header[i].num_of_pll,
                               fvmap_header[i].block_addr);
 
-        fvmap_dump_ratevolt_io("SRAM", i, sram_base, fvmap_header[i].o_ratevolt, old_lv);
-        fvmap_dump_ratevolt_io("MAP",  i, map_base,  fvmap_header[i].o_ratevolt, fvmap_header[i].num_of_lv);
+        fvmap_dump_ratevolt_io("SRAM", i, sram_base, fvmap_header[i].o_ratevolt,
+                               old_lv);
+        fvmap_dump_ratevolt_io("MAP", i, map_base, fvmap_header[i].o_ratevolt,
+                               fvmap_header[i].num_of_lv);
 
         fvmap_dump_params_io("SRAM", i, sram_base, fvmap_header[i].o_tables,
                              old_lv, fvmap_header[i].num_of_members);
-        fvmap_dump_params_io("MAP",  i, map_base,  fvmap_header[i].o_tables,
-                             fvmap_header[i].num_of_lv, fvmap_header[i].num_of_members);
+        fvmap_dump_params_io("MAP", i, map_base, fvmap_header[i].o_tables,
+                             fvmap_header[i].num_of_lv,
+                             fvmap_header[i].num_of_members);
 
-        
         pr_info("%s: index=%d dvfs_type=%d num_lv=%d members=%d\n", __func__, i,
                 fvmap_header[i].dvfs_type, fvmap_header[i].num_of_lv,
                 fvmap_header[i].num_of_members);
