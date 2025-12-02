@@ -35,6 +35,7 @@ jobs:
             bc \
             bison \
             build-essential \
+            ccache \
             clang \
             cpio \
             flex \
@@ -50,10 +51,31 @@ jobs:
             zip \
             zstd
 
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ matrix.model }}-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.model }}-
+
+      - name: Configure ccache
+        run: |
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          echo "CCACHE_NOHASHDIR=1" >> $GITHUB_ENV
+          echo "CCACHE_SLOPPINESS=file_macro,locale,time_macros" >> $GITHUB_ENV
+          ccache --max-size=3G
+          ccache -s
+
       - name: Build kernel
         run: |
           chmod +x build.sh
           ./build.sh --model ${{ matrix.model }} --ksu y
+
+      - name: ccache stats after build
+        run: ccache -s
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

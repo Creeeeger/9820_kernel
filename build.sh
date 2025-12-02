@@ -68,12 +68,25 @@ if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
     popd > /dev/null
 fi
 
-MAKE_ARGS="
-LLVM=1 \
-LLVM_IAS=1 \
-ARCH=arm64 \
-O=out
-"
+MAKE_ARGS=(
+    LLVM=1
+    LLVM_IAS=1
+    ARCH=arm64
+    O=out
+)
+
+# Prefer content-addressed compiler cache so rebuilds in fresh checkouts are fast
+if command -v ccache >/dev/null 2>&1; then
+    echo "ccache detected, enabling compiler cache..."
+    export CCACHE_DIR="${CCACHE_DIR:-$PWD/.ccache}"
+    export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$PWD}"
+    export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+    export CCACHE_NOHASHDIR="${CCACHE_NOHASHDIR:-1}"
+    export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-file_macro,locale,time_macros}"
+    MAKE_ARGS+=(CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++")
+else
+    echo "ccache not found, building without compiler cache."
+fi
 
 # Define specific variables
 case $MODEL in
@@ -159,11 +172,11 @@ echo "-----------------------------------------------"
 echo "Building kernel using "$KERNEL_DEFCONFIG""
 echo "Generating configuration file..."
 echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
+make "${MAKE_ARGS[@]}" -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
 
 echo "Building kernel..."
 echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES || abort
+make "${MAKE_ARGS[@]}" -j$CORES || abort
 
 # Define constant variables
 KERNEL_PATH=build/out/$MODEL/Image

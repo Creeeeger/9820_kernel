@@ -2867,6 +2867,150 @@ static int ect_override_g3d_pll_table(void)
     return 0;
 }
 
+static void ect_print_dvfs_block(struct ect_dvfs_header *h)
+{
+    int i, j, k;
+
+    pr_info("[ECT] DVFS: parser=%d ver=%c%c%c%c domains=%d\n",
+            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
+            h->num_of_domain);
+
+    for (i = 0; i < h->num_of_domain; i++) {
+        struct ect_dvfs_domain *d = &h->domain_list[i];
+
+        pr_info("[ECT]  DVFS domain=%s max=%u min=%u boot_idx=%d resume_idx=%d mode=0x%x clocks=%d levels=%d\n",
+                d->domain_name, d->max_frequency, d->min_frequency,
+                d->boot_level_idx, d->resume_level_idx, d->mode,
+                d->num_of_clock, d->num_of_level);
+
+        if (d->mode == e_dvfs_mode_clock_name && d->list_clock) {
+            for (j = 0; j < d->num_of_clock; j++)
+                pr_info("[ECT]    clock[%d]=%s\n", j, d->list_clock[j]);
+        } else if (d->mode == e_dvfs_mode_sfr_address && d->list_sfr) {
+            for (j = 0; j < d->num_of_clock; j++)
+                pr_info("[ECT]    sfr[%d]=0x%x\n", j, d->list_sfr[j]);
+        }
+
+        for (j = 0; j < d->num_of_level; j++) {
+            pr_info("[ECT]    level[%d]=%u en=%d\n",
+                    j, d->list_level[j].level, d->list_level[j].level_en);
+        }
+
+        /* Table: level-major, num_of_clock columns */
+        for (j = 0; j < d->num_of_level; j++) {
+            pr_info("[ECT]    table L%d:\n", j);
+            for (k = 0; k < d->num_of_clock; k++) {
+                unsigned int v = d->list_dvfs_value[j * d->num_of_clock + k];
+                pr_info("[ECT]      [%d,%d]=%u\n", j, k, v);
+            }
+        }
+    }
+}
+
+static void ect_print_asv_block(struct ect_voltage_header *h)
+{
+    int i, j, k, g;
+
+    pr_info("[ECT] ASV: parser=%d ver=%c%c%c%c domains=%d\n",
+            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
+            h->num_of_domain);
+
+    for (i = 0; i < h->num_of_domain; i++) {
+        struct ect_voltage_domain *d = &h->domain_list[i];
+        pr_info("[ECT]  ASV domain=%s groups=%d levels=%d tables=%d\n",
+                d->domain_name, d->num_of_group, d->num_of_level, d->num_of_table);
+
+        for (j = 0; j < d->num_of_level; j++)
+            pr_info("[ECT]    freq[%d]=%u\n", j, d->level_list[j]);
+
+        for (k = 0; k < d->num_of_table; k++) {
+            struct ect_voltage_table *t = &d->table_list[k];
+            pr_info("[ECT]    table[%d] ver=%d boot_idx=%d resume_idx=%d volt_step=%u\n",
+                    k, t->table_version, t->boot_level_idx, t->resume_level_idx, t->volt_step);
+
+            if (t->level_en) {
+                for (j = 0; j < d->num_of_level; j++)
+                    pr_info("[ECT]      en[%d]=%d\n", j, t->level_en[j]);
+            }
+
+            for (j = 0; j < d->num_of_level; j++) {
+                for (g = 0; g < d->num_of_group; g++) {
+                    unsigned int uv = 0;
+
+                    if (t->voltages)
+                        uv = t->voltages[j * d->num_of_group + g];
+                    else if (t->voltages_step)
+                        uv = t->voltages_step[j * d->num_of_group + g] * t->volt_step;
+
+                    pr_info("[ECT]      V[%d,%d]=%u uV\n", j, g, uv);
+                }
+            }
+        }
+    }
+}
+
+static void ect_print_pll_block(struct ect_pll_header *h)
+{
+    int i, j;
+
+    pr_info("[ECT] PLL: parser=%d ver=%c%c%c%c plls=%d\n",
+            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
+            h->num_of_pll);
+
+    for (i = 0; i < h->num_of_pll; i++) {
+        struct ect_pll *p = &h->pll_list[i];
+        pr_info("[ECT]  pll=%s type=%u freqs=%d\n",
+                p->pll_name, p->type_pll, p->num_of_frequency);
+
+        for (j = 0; j < p->num_of_frequency; j++) {
+            struct ect_pll_frequency *f = &p->frequency_list[j];
+            pr_info("[ECT]    f[%d]=%u p=%u m=%u s=%u k=%u\n",
+                    j, f->frequency, f->p, f->m, f->s, f->k);
+        }
+    }
+}
+
+static void ect_print_all_blocks_once(void)
+{
+    static bool done;
+
+    struct ect_header *hdr = ect_header_info.block_handle;
+    void *blk;
+
+    if (done)
+        return;
+    done = true;
+
+    pr_info("====================================\n");
+    pr_info("[ECT] FULL DUMP (printed at parse end)\n");
+
+    if (hdr) {
+        pr_info("[ECT] HEADER: VA=%p SIGN=%c%c%c%c VER=%c%c%c%c total=%u headers=%d\n",
+                (void *)S5P_VA_ECT,
+                hdr->sign[0], hdr->sign[1], hdr->sign[2], hdr->sign[3],
+                hdr->version[0], hdr->version[1], hdr->version[2], hdr->version[3],
+                hdr->total_size, hdr->num_of_header);
+    } else {
+        pr_info("[ECT] HEADER: (null)\n");
+    }
+
+    blk = ect_get_block(BLOCK_DVFS);
+    if (blk) ect_print_dvfs_block((struct ect_dvfs_header *)blk);
+
+    blk = ect_get_block(BLOCK_ASV);
+    if (blk) ect_print_asv_block((struct ect_voltage_header *)blk);
+
+    blk = ect_get_block(BLOCK_PLL);
+    if (blk) ect_print_pll_block((struct ect_pll_header *)blk);
+
+    /* Optional: raw bytes preview (keep small!) */
+    pr_info("[ECT] RAW (first 256 bytes):\n");
+    print_hex_dump(KERN_INFO, "[ECT] ", DUMP_PREFIX_OFFSET, 16, 4,
+                   (void *)ect_address, min_t(size_t, ect_size, 256), false);
+
+    pr_info("====================================\n");
+}
+
 int ect_parse_binary_header(void) {
     int ret = 0;
     int i, j;
@@ -2923,6 +3067,8 @@ int ect_parse_binary_header(void) {
     ect_override_g3d_pll_table();
 
     ect_header_info.block_handle = ect_header;
+    
+    ect_print_all_blocks_once();
 
     return ret;
 
