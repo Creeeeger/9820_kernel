@@ -45,7 +45,6 @@ static void dump_ipc_config(const char *fn, const char *tag,
               fn, tag, i, cfg->cmd[i], cfg->cmd[i]);
 }
 
-          where,
 int exynos_acpm_set_rate(unsigned int id, unsigned long rate, const char *name)
 {
 	struct ipc_config config;
