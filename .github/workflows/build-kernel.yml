@@ -59,6 +59,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-build-${{ matrix.model }}
+          # Avoid recompressing already-zipped build products to keep downloads lean.
+          compression-level: 0
           path: |
             build/out/**/zip/*.zip
           if-no-files-found: warn
