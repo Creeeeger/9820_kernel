@@ -56,6 +56,21 @@ static const struct rate_volt g3d_manual_ratevolt[] = {
     G3D_MANUAL_RATE(100, 537500),
 };
 
+static int g3d_pll_idx_from_rate(unsigned int rate_khz) {
+    static const unsigned int pll_rates[] = {
+        910000, 858000, 806000, 754000, 702000, 676000, 650000, 598000,
+        572000, 432250, 377000, 325000, 320000, 260000, 245760, 199875,
+        160000, 156000,  99937,
+    };
+    size_t i;
+
+    for (i = 0; i < ARRAY_SIZE(pll_rates); i++)
+        if (pll_rates[i] == rate_khz)
+            return (int)i;
+
+    return -1;
+}
+
 static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
                                   size_t old_lv, unsigned int target_rate) {
     size_t best = 0;
@@ -141,6 +156,7 @@ static int patch_tables(volatile struct fvmap_header *hdr,
                         size_t old_lv) {
     size_t manual_lv = ARRAY_SIZE(g3d_manual_ratevolt);
     size_t members = hdr->num_of_members;
+    size_t pll_members = hdr->num_of_pll;
     size_t lv, k;
 
     pr_info("%s: members=%zu manual_lv=%zu old_lv=%zu\n", __func__, members,
@@ -184,10 +200,23 @@ static int patch_tables(volatile struct fvmap_header *hdr,
         for (k = 0; k < members; k++) {
             unsigned int p;
 
-            if (lv < old_lv)
+            if (k < pll_members) {
+                int pll_idx = g3d_pll_idx_from_rate(rate);
+
+                if (pll_idx >= 0) {
+                    p = pll_idx;
+                } else if (lv < old_lv) {
+                    p = old_param->val[src_lv * members + k];
+                } else if (lv) {
+                    p = new_param->val[(lv - 1) * members + k];
+                } else {
+                    p = 0;
+                }
+            } else if (lv < old_lv) {
                 p = old_param->val[src_lv * members + k];
-            else
+            } else {
                 p = new_param->val[(lv - 1) * members + k];
+            }
 
             new_param->val[lv * members + k] = p;
             vclk->lut[lv].params[k] = p;

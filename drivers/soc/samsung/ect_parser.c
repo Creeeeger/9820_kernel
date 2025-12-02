@@ -2813,58 +2813,94 @@ static int ect_override_g3d_tables(void)
 
 static int ect_override_g3d_pll_table(void)
 {
-    void *pll_blk;
-    struct ect_pll *pll;
-    struct ect_pll_frequency *new_list;
-    int old_n, add_n, new_n;
+	void *pll_blk;
+	struct ect_pll *pll;
+	struct ect_pll_frequency *new_list;
+	bool present[ARRAY_SIZE(desired)] = { false };
+	int old_n, new_n;
+	int missing = 0;
+	int i, idx;
 
-    /* Neue Top-3 (Hz!) passend zu deiner DVFS-Liste (kHz) */
-    static const struct ect_pll_frequency add[] = {
-        { .frequency = 910000000, .p = 4, .m = 140, .s = 0, .k = 0 },
-        { .frequency = 858000000, .p = 4, .m = 132, .s = 0, .k = 0 },
-        { .frequency = 806000000, .p = 4, .m = 124, .s = 0, .k = 0 },
+    static const struct ect_pll_frequency desired[] = {
+        { .frequency = 910000000,  .p = 4, .m = 140, .s = 0, .k = 0 },
+        { .frequency = 858000000,  .p = 4, .m = 132, .s = 0, .k = 0 },
+        { .frequency = 806000000,  .p = 4, .m = 124, .s = 0, .k = 0 },
+        { .frequency = 754000000,  .p = 4, .m = 116, .s = 0, .k = 0 },
+        { .frequency = 702000000,  .p = 4, .m = 108, .s = 0, .k = 0 },
+        { .frequency = 676000000,  .p = 4, .m = 104, .s = 0, .k = 0 },
+        { .frequency = 650000000,  .p = 4, .m = 100, .s = 0, .k = 0 },
+
+        { .frequency = 598000000,  .p = 4, .m = 184, .s = 1, .k = 0 },
+        { .frequency = 572000000,  .p = 4, .m = 176, .s = 1, .k = 0 },
+        { .frequency = 432250000,  .p = 4, .m = 133, .s = 1, .k = 0 },
+        { .frequency = 377000000,  .p = 4, .m = 116, .s = 1, .k = 0 },
+        { .frequency = 325000000,  .p = 4, .m = 100, .s = 1, .k = 0 },
+
+        { .frequency = 260000000,  .p = 4, .m = 160, .s = 2, .k = 0 },
+        { .frequency = 199875000,  .p = 4, .m = 123, .s = 2, .k = 0 },
+        { .frequency = 156000000,  .p = 4, .m = 96,  .s = 2, .k = 0 },
+
+        { .frequency = 99937000,   .p = 4, .m = 123, .s = 3, .k = 0 },
     };
 
-    pll_blk = ect_get_block(BLOCK_PLL);
-    if (!pll_blk)
-        return -ENODEV;
+	pll_blk = ect_get_block(BLOCK_PLL);
+	if (!pll_blk)
+		return -ENODEV;
 
     pll = ect_pll_get_pll(pll_blk, "PLL_G3D");
-    if (!pll)
-        return -ENODEV;
+	if (!pll)
+		return -ENODEV;
 
-    old_n = pll->num_of_frequency;
+	old_n = pll->num_of_frequency;
 
-    /* Wenn schon >754 drin ist, nichts tun */
-    if (old_n > 0 && pll->frequency_list &&
-        pll->frequency_list[0].frequency >= 806000000) {
-        pr_info("[ECT] g3d override: PLL_G3D already has high OPPs (%u)\n",
-                pll->frequency_list[0].frequency);
-        return 0;
-    }
+	for (i = 0; i < ARRAY_SIZE(desired); i++) {
+		int j;
 
-    add_n = ARRAY_SIZE(add);
-    new_n = old_n + add_n;
+		if (pll->frequency_list) {
+			for (j = 0; j < old_n; j++) {
+				if (pll->frequency_list[j].frequency == desired[i].frequency) {
+					present[i] = true;
+					break;
+				}
+			}
+		}
 
-    new_list = kzalloc(sizeof(*new_list) * new_n, GFP_KERNEL);
-    if (!new_list)
-        return -ENOMEM;
+		if (!present[i])
+			missing++;
+	}
 
-    /* Top-3 vorne rein */
-    memcpy(&new_list[0], add, sizeof(add));
+	if (!missing) {
+		pr_info("[ECT] g3d override: PLL_G3D already has all %zu target freqs\n",
+			ARRAY_SIZE(desired));
+		return 0;
+	}
 
-    /* Rest 1:1 übernehmen */
-    if (pll->frequency_list && old_n > 0)
-        memcpy(&new_list[add_n], pll->frequency_list,
-               sizeof(*new_list) * old_n);
+	new_n = old_n + missing;
 
-    pll->frequency_list = new_list;
-    pll->num_of_frequency = new_n;
+	new_list = kzalloc(sizeof(*new_list) * new_n, GFP_KERNEL);
+	if (!new_list)
+		return -ENOMEM;
 
-    pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %d (added 910/858/806)\n",
-            old_n, new_n);
+	/* Prepend the missing targets first to preserve priority order */
+	idx = 0;
+	for (i = 0; i < ARRAY_SIZE(desired); i++) {
+		if (present[i])
+			continue;
+		new_list[idx++] = desired[i];
+	}
 
-    return 0;
+	/* Rest 1:1 übernehmen */
+	if (pll->frequency_list && old_n > 0)
+		memcpy(&new_list[idx], pll->frequency_list,
+			   sizeof(*new_list) * old_n);
+
+	pll->frequency_list = new_list;
+	pll->num_of_frequency = new_n;
+
+	pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %d (added %d entries)\n",
+		old_n, new_n, missing);
+
+	return 0;
 }
 
 static void ect_print_dvfs_block(struct ect_dvfs_header *h)
