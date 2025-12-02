@@ -11,8 +11,8 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/printk.h>
-#include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #define ALIGNMENT_SIZE 4
 
@@ -2591,8 +2591,7 @@ ect_new_timing_param_get_key(void *block, unsigned long long key) {
     return NULL;
 }
 
-static int ect_override_g3d_tables(void)
-{
+static int ect_override_g3d_tables(void) {
     void *dvfs_blk, *asv_blk, *gen_blk;
     struct ect_dvfs_domain *dvfs;
     struct ect_voltage_domain *asv;
@@ -2602,13 +2601,10 @@ static int ect_override_g3d_tables(void)
 
     /* Ziel-Liste: kHz (DVFS) + MHz (ASV) muss konsistent sein */
     static const u32 freqs_khz[] = {
-        910000, 858000, 806000, 754000, 702000, 676000, 650000, 598000, 572000,
-        433000, 377000, 325000, 260000, 200000, 156000, 100000
-    };
-    static const int32_t freqs_mhz[] = {
-        910, 858, 806, 754, 702, 676, 650, 598, 572,
-        433, 377, 325, 260, 200, 156, 100
-    };
+        910000, 858000, 806000, 754000, 702000, 676000, 650000, 598000,
+        572000, 433000, 377000, 325000, 260000, 200000, 156000, 100000};
+    static const int32_t freqs_mhz[] = {910, 858, 806, 754, 702, 676, 650, 598,
+                                        572, 433, 377, 325, 260, 200, 156, 100};
 
     const int new_levels = ARRAY_SIZE(freqs_khz);
 
@@ -2631,9 +2627,11 @@ static int ect_override_g3d_tables(void)
             void *new_list_level;
             u32 *p;
             int i;
-            const size_t stride_u32 = sizeof(struct ect_dvfs_level) / sizeof(u32);
+            const size_t stride_u32 =
+                sizeof(struct ect_dvfs_level) / sizeof(u32);
 
-            new_list_level = kzalloc(sizeof(struct ect_dvfs_level) * new_levels, GFP_KERNEL);
+            new_list_level =
+                kzalloc(sizeof(struct ect_dvfs_level) * new_levels, GFP_KERNEL);
             if (!new_list_level)
                 return -ENOMEM;
 
@@ -2669,7 +2667,8 @@ static int ect_override_g3d_tables(void)
         dvfs->max_frequency = freqs_khz[0];
         dvfs->min_frequency = freqs_khz[new_levels - 1];
 
-        pr_info("[ECT] g3d override: DVFS levels %d -> %d\n", old_levels, new_levels);
+        pr_info("[ECT] g3d override: DVFS levels %d -> %d\n", old_levels,
+                new_levels);
     }
 
     /* --- ASV domain holen --- */
@@ -2709,7 +2708,8 @@ static int ect_override_g3d_tables(void)
             /* level_en erweitern (wenn vorhanden) */
             if (tbl->level_en) {
                 int32_t *old_en = (int32_t *)tbl->level_en;
-                int32_t *new_en = kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
+                int32_t *new_en =
+                    kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
                 int r;
 
                 if (!new_en)
@@ -2743,7 +2743,8 @@ static int ect_override_g3d_tables(void)
             /* parser_version<3: voltages (int32 uV) */
             else if (tbl->voltages) {
                 int32_t *old = (int32_t *)tbl->voltages;
-                int32_t *neu = kzalloc(sizeof(int32_t) * g * new_levels, GFP_KERNEL);
+                int32_t *neu =
+                    kzalloc(sizeof(int32_t) * g * new_levels, GFP_KERNEL);
                 int r;
 
                 if (!neu)
@@ -2752,11 +2753,14 @@ static int ect_override_g3d_tables(void)
                 for (r = 0; r < delta; r++)
                     memcpy(&neu[g * r], &old[0], g * sizeof(int32_t));
 
-                memcpy(&neu[g * delta], &old[0], g * old_levels * sizeof(int32_t));
+                memcpy(&neu[g * delta], &old[0],
+                       g * old_levels * sizeof(int32_t));
 
                 tbl->voltages = neu;
             } else {
-                pr_warn("[ECT] g3d override: ASV table %d has no voltage data\n", t);
+                pr_warn(
+                    "[ECT] g3d override: ASV table %d has no voltage data\n",
+                    t);
             }
         }
 
@@ -2776,9 +2780,11 @@ static int ect_override_g3d_tables(void)
         const int cols = margin_tbl->num_of_col;
         const int rows = margin_tbl->num_of_row;
 
-        if (cols == 2 && rows > 0 && rows < new_levels && margin_tbl->parameter) {
+        if (cols == 2 && rows > 0 && rows < new_levels &&
+            margin_tbl->parameter) {
             int32_t *oldp = (int32_t *)margin_tbl->parameter;
-            int32_t *newp = kzalloc(sizeof(int32_t) * cols * new_levels, GFP_KERNEL);
+            int32_t *newp =
+                kzalloc(sizeof(int32_t) * cols * new_levels, GFP_KERNEL);
             const int delta = new_levels - rows;
             int i;
             int32_t top_margin = oldp[1];
@@ -2795,126 +2801,125 @@ static int ect_override_g3d_tables(void)
                 newp[i * 2 + 1] = top_margin;
             }
 
-            /* alte Rows nach unten schieben, Margin aus alter 2. Spalte übernehmen */
+            /* alte Rows nach unten schieben, Margin aus alter 2. Spalte
+             * übernehmen */
             for (i = 0; i < rows; i++) {
                 newp[(i + delta) * 2 + 0] = i + delta;
                 newp[(i + delta) * 2 + 1] = oldp[i * 2 + 1];
             }
 
-            margin_tbl->parameter  = newp;
+            margin_tbl->parameter = newp;
             margin_tbl->num_of_row = new_levels;
 
-            pr_info("[ECT] g3d override: G3D_DD_margin rows %d -> %d\n", rows, new_levels);
+            pr_info("[ECT] g3d override: G3D_DD_margin rows %d -> %d\n", rows,
+                    new_levels);
         }
     }
 
     return 0;
 }
 
-static int ect_override_g3d_pll_table(void)
-{
-	void *pll_blk;
-	struct ect_pll *pll;
-	struct ect_pll_frequency *new_list;
-	bool present[ARRAY_SIZE(desired)] = { false };
-	int old_n, new_n;
-	int missing = 0;
-	int i, idx;
-
+static int ect_override_g3d_pll_table(void) {
     static const struct ect_pll_frequency desired[] = {
-        { .frequency = 910000000,  .p = 4, .m = 140, .s = 0, .k = 0 },
-        { .frequency = 858000000,  .p = 4, .m = 132, .s = 0, .k = 0 },
-        { .frequency = 806000000,  .p = 4, .m = 124, .s = 0, .k = 0 },
-        { .frequency = 754000000,  .p = 4, .m = 116, .s = 0, .k = 0 },
-        { .frequency = 702000000,  .p = 4, .m = 108, .s = 0, .k = 0 },
-        { .frequency = 676000000,  .p = 4, .m = 104, .s = 0, .k = 0 },
-        { .frequency = 650000000,  .p = 4, .m = 100, .s = 0, .k = 0 },
-
-        { .frequency = 598000000,  .p = 4, .m = 184, .s = 1, .k = 0 },
-        { .frequency = 572000000,  .p = 4, .m = 176, .s = 1, .k = 0 },
-        { .frequency = 432250000,  .p = 4, .m = 133, .s = 1, .k = 0 },
-        { .frequency = 377000000,  .p = 4, .m = 116, .s = 1, .k = 0 },
-        { .frequency = 325000000,  .p = 4, .m = 100, .s = 1, .k = 0 },
-
-        { .frequency = 260000000,  .p = 4, .m = 160, .s = 2, .k = 0 },
-        { .frequency = 199875000,  .p = 4, .m = 123, .s = 2, .k = 0 },
-        { .frequency = 156000000,  .p = 4, .m = 96,  .s = 2, .k = 0 },
-
-        { .frequency = 99937000,   .p = 4, .m = 123, .s = 3, .k = 0 },
+        {.frequency = 910000000, .p = 4, .m = 140, .s = 0, .k = 0},
+        {.frequency = 858000000, .p = 4, .m = 132, .s = 0, .k = 0},
+        {.frequency = 806000000, .p = 4, .m = 124, .s = 0, .k = 0},
+        {.frequency = 754000000, .p = 4, .m = 116, .s = 0, .k = 0},
+        {.frequency = 702000000, .p = 4, .m = 108, .s = 0, .k = 0},
+        {.frequency = 676000000, .p = 4, .m = 104, .s = 0, .k = 0},
+        {.frequency = 650000000, .p = 4, .m = 100, .s = 0, .k = 0},
+        {.frequency = 598000000, .p = 4, .m = 184, .s = 1, .k = 0},
+        {.frequency = 572000000, .p = 4, .m = 176, .s = 1, .k = 0},
+        {.frequency = 432250000, .p = 4, .m = 133, .s = 1, .k = 0},
+        {.frequency = 377000000, .p = 4, .m = 116, .s = 1, .k = 0},
+        {.frequency = 325000000, .p = 4, .m = 100, .s = 1, .k = 0},
+        {.frequency = 260000000, .p = 4, .m = 160, .s = 2, .k = 0},
+        {.frequency = 199875000, .p = 4, .m = 123, .s = 2, .k = 0},
+        {.frequency = 156000000, .p = 4, .m = 96,  .s = 2, .k = 0},
+        {.frequency = 99937000,  .p = 4, .m = 123, .s = 3, .k = 0},
     };
+    void *pll_blk;
+    struct ect_pll *pll;
+    struct ect_pll_frequency *new_list;
+    bool present[ARRAY_SIZE(desired)] = {false};
+    int old_n, new_n;
+    int missing = 0;
+    int i, idx;
 
-	pll_blk = ect_get_block(BLOCK_PLL);
-	if (!pll_blk)
-		return -ENODEV;
+    pll_blk = ect_get_block(BLOCK_PLL);
+    if (!pll_blk)
+        return -ENODEV;
 
     pll = ect_pll_get_pll(pll_blk, "PLL_G3D");
-	if (!pll)
-		return -ENODEV;
+    if (!pll)
+        return -ENODEV;
 
-	old_n = pll->num_of_frequency;
+    old_n = pll->num_of_frequency;
 
-	for (i = 0; i < ARRAY_SIZE(desired); i++) {
-		int j;
+    for (i = 0; i < ARRAY_SIZE(desired); i++) {
+        int j;
 
-		if (pll->frequency_list) {
-			for (j = 0; j < old_n; j++) {
-				if (pll->frequency_list[j].frequency == desired[i].frequency) {
-					present[i] = true;
-					break;
-				}
-			}
-		}
+        if (pll->frequency_list) {
+            for (j = 0; j < old_n; j++) {
+                if (pll->frequency_list[j].frequency == desired[i].frequency) {
+                    present[i] = true;
+                    break;
+                }
+            }
+        }
 
-		if (!present[i])
-			missing++;
-	}
+        if (!present[i])
+            missing++;
+    }
 
-	if (!missing) {
-		pr_info("[ECT] g3d override: PLL_G3D already has all %zu target freqs\n",
-			ARRAY_SIZE(desired));
-		return 0;
-	}
+    if (!missing) {
+        pr_info(
+            "[ECT] g3d override: PLL_G3D already has all %zu target freqs\n",
+            ARRAY_SIZE(desired));
+        return 0;
+    }
 
-	new_n = old_n + missing;
+    new_n = old_n + missing;
 
-	new_list = kzalloc(sizeof(*new_list) * new_n, GFP_KERNEL);
-	if (!new_list)
-		return -ENOMEM;
+    new_list = kzalloc(sizeof(*new_list) * new_n, GFP_KERNEL);
+    if (!new_list)
+        return -ENOMEM;
 
-	/* Prepend the missing targets first to preserve priority order */
-	idx = 0;
-	for (i = 0; i < ARRAY_SIZE(desired); i++) {
-		if (present[i])
-			continue;
-		new_list[idx++] = desired[i];
-	}
+    /* Prepend the missing targets first to preserve priority order */
+    idx = 0;
+    for (i = 0; i < ARRAY_SIZE(desired); i++) {
+        if (present[i])
+            continue;
+        new_list[idx++] = desired[i];
+    }
 
-	/* Rest 1:1 übernehmen */
-	if (pll->frequency_list && old_n > 0)
-		memcpy(&new_list[idx], pll->frequency_list,
-			   sizeof(*new_list) * old_n);
+    /* Rest 1:1 übernehmen */
+    if (pll->frequency_list && old_n > 0)
+        memcpy(&new_list[idx], pll->frequency_list, sizeof(*new_list) * old_n);
 
-	pll->frequency_list = new_list;
-	pll->num_of_frequency = new_n;
+    /* Replace pointer */
+    kfree(pll->frequency_list);
+    pll->frequency_list = new_list;
+    pll->num_of_frequency = new_n;
 
-	pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %d (added %d entries)\n",
-		old_n, new_n, missing);
+    pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %d (added %d entries)\n",
+            old_n, new_n, missing);
 
-	return 0;
+    return 0;
 }
 
-static void ect_print_dvfs_block(struct ect_dvfs_header *h)
-{
+static void ect_print_dvfs_block(struct ect_dvfs_header *h) {
     int i, j, k;
 
     pr_info("[ECT] DVFS: parser=%d ver=%c%c%c%c domains=%d\n",
-            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
-            h->num_of_domain);
+            h->parser_version, h->version[0], h->version[1], h->version[2],
+            h->version[3], h->num_of_domain);
 
     for (i = 0; i < h->num_of_domain; i++) {
         struct ect_dvfs_domain *d = &h->domain_list[i];
 
-        pr_info("[ECT]  DVFS domain=%s max=%u min=%u boot_idx=%d resume_idx=%d mode=0x%x clocks=%d levels=%d\n",
+        pr_info("[ECT]  DVFS domain=%s max=%u min=%u boot_idx=%d resume_idx=%d "
+                "mode=0x%x clocks=%d levels=%d\n",
                 d->domain_name, d->max_frequency, d->min_frequency,
                 d->boot_level_idx, d->resume_level_idx, d->mode,
                 d->num_of_clock, d->num_of_level);
@@ -2928,8 +2933,8 @@ static void ect_print_dvfs_block(struct ect_dvfs_header *h)
         }
 
         for (j = 0; j < d->num_of_level; j++) {
-            pr_info("[ECT]    level[%d]=%u en=%d\n",
-                    j, d->list_level[j].level, d->list_level[j].level_en);
+            pr_info("[ECT]    level[%d]=%u en=%d\n", j, d->list_level[j].level,
+                    d->list_level[j].level_en);
         }
 
         /* Table: level-major, num_of_clock columns */
@@ -2943,26 +2948,28 @@ static void ect_print_dvfs_block(struct ect_dvfs_header *h)
     }
 }
 
-static void ect_print_asv_block(struct ect_voltage_header *h)
-{
+static void ect_print_asv_block(struct ect_voltage_header *h) {
     int i, j, k, g;
 
-    pr_info("[ECT] ASV: parser=%d ver=%c%c%c%c domains=%d\n",
-            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
+    pr_info("[ECT] ASV: parser=%d ver=%c%c%c%c domains=%d\n", h->parser_version,
+            h->version[0], h->version[1], h->version[2], h->version[3],
             h->num_of_domain);
 
     for (i = 0; i < h->num_of_domain; i++) {
         struct ect_voltage_domain *d = &h->domain_list[i];
         pr_info("[ECT]  ASV domain=%s groups=%d levels=%d tables=%d\n",
-                d->domain_name, d->num_of_group, d->num_of_level, d->num_of_table);
+                d->domain_name, d->num_of_group, d->num_of_level,
+                d->num_of_table);
 
         for (j = 0; j < d->num_of_level; j++)
             pr_info("[ECT]    freq[%d]=%u\n", j, d->level_list[j]);
 
         for (k = 0; k < d->num_of_table; k++) {
             struct ect_voltage_table *t = &d->table_list[k];
-            pr_info("[ECT]    table[%d] ver=%d boot_idx=%d resume_idx=%d volt_step=%u\n",
-                    k, t->table_version, t->boot_level_idx, t->resume_level_idx, t->volt_step);
+            pr_info("[ECT]    table[%d] ver=%d boot_idx=%d resume_idx=%d "
+                    "volt_step=%u\n",
+                    k, t->table_version, t->boot_level_idx, t->resume_level_idx,
+                    t->volt_step);
 
             if (t->level_en) {
                 for (j = 0; j < d->num_of_level; j++)
@@ -2976,7 +2983,8 @@ static void ect_print_asv_block(struct ect_voltage_header *h)
                     if (t->voltages)
                         uv = t->voltages[j * d->num_of_group + g];
                     else if (t->voltages_step)
-                        uv = t->voltages_step[j * d->num_of_group + g] * t->volt_step;
+                        uv = t->voltages_step[j * d->num_of_group + g] *
+                             t->volt_step;
 
                     pr_info("[ECT]      V[%d,%d]=%u uV\n", j, g, uv);
                 }
@@ -2985,29 +2993,27 @@ static void ect_print_asv_block(struct ect_voltage_header *h)
     }
 }
 
-static void ect_print_pll_block(struct ect_pll_header *h)
-{
+static void ect_print_pll_block(struct ect_pll_header *h) {
     int i, j;
 
-    pr_info("[ECT] PLL: parser=%d ver=%c%c%c%c plls=%d\n",
-            h->parser_version, h->version[0], h->version[1], h->version[2], h->version[3],
+    pr_info("[ECT] PLL: parser=%d ver=%c%c%c%c plls=%d\n", h->parser_version,
+            h->version[0], h->version[1], h->version[2], h->version[3],
             h->num_of_pll);
 
     for (i = 0; i < h->num_of_pll; i++) {
         struct ect_pll *p = &h->pll_list[i];
-        pr_info("[ECT]  pll=%s type=%u freqs=%d\n",
-                p->pll_name, p->type_pll, p->num_of_frequency);
+        pr_info("[ECT]  pll=%s type=%u freqs=%d\n", p->pll_name, p->type_pll,
+                p->num_of_frequency);
 
         for (j = 0; j < p->num_of_frequency; j++) {
             struct ect_pll_frequency *f = &p->frequency_list[j];
-            pr_info("[ECT]    f[%d]=%u p=%u m=%u s=%u k=%u\n",
-                    j, f->frequency, f->p, f->m, f->s, f->k);
+            pr_info("[ECT]    f[%d]=%u p=%u m=%u s=%u k=%u\n", j, f->frequency,
+                    f->p, f->m, f->s, f->k);
         }
     }
 }
 
-static void ect_print_all_blocks_once(void)
-{
+static void ect_print_all_blocks_once(void) {
     static bool done;
 
     struct ect_header *hdr = ect_header_info.block_handle;
@@ -3021,23 +3027,26 @@ static void ect_print_all_blocks_once(void)
     pr_info("[ECT] FULL DUMP (printed at parse end)\n");
 
     if (hdr) {
-        pr_info("[ECT] HEADER: VA=%p SIGN=%c%c%c%c VER=%c%c%c%c total=%u headers=%d\n",
-                (void *)S5P_VA_ECT,
-                hdr->sign[0], hdr->sign[1], hdr->sign[2], hdr->sign[3],
-                hdr->version[0], hdr->version[1], hdr->version[2], hdr->version[3],
-                hdr->total_size, hdr->num_of_header);
+        pr_info("[ECT] HEADER: VA=%p SIGN=%c%c%c%c VER=%c%c%c%c total=%u "
+                "headers=%d\n",
+                (void *)S5P_VA_ECT, hdr->sign[0], hdr->sign[1], hdr->sign[2],
+                hdr->sign[3], hdr->version[0], hdr->version[1], hdr->version[2],
+                hdr->version[3], hdr->total_size, hdr->num_of_header);
     } else {
         pr_info("[ECT] HEADER: (null)\n");
     }
 
     blk = ect_get_block(BLOCK_DVFS);
-    if (blk) ect_print_dvfs_block((struct ect_dvfs_header *)blk);
+    if (blk)
+        ect_print_dvfs_block((struct ect_dvfs_header *)blk);
 
     blk = ect_get_block(BLOCK_ASV);
-    if (blk) ect_print_asv_block((struct ect_voltage_header *)blk);
+    if (blk)
+        ect_print_asv_block((struct ect_voltage_header *)blk);
 
     blk = ect_get_block(BLOCK_PLL);
-    if (blk) ect_print_pll_block((struct ect_pll_header *)blk);
+    if (blk)
+        ect_print_pll_block((struct ect_pll_header *)blk);
 
     /* Optional: raw bytes preview (keep small!) */
     pr_info("[ECT] RAW (first 256 bytes):\n");
@@ -3098,12 +3107,12 @@ int ect_parse_binary_header(void) {
             ect_list[j].block_precedence = i;
         }
     }
-    
+
     ect_override_g3d_tables();
     ect_override_g3d_pll_table();
 
     ect_header_info.block_handle = ect_header;
-    
+
     ect_print_all_blocks_once();
 
     return ret;
