@@ -2835,16 +2835,15 @@ static int ect_override_g3d_pll_table(void) {
         {.frequency = 325000000, .p = 4, .m = 100, .s = 1, .k = 0},
         {.frequency = 260000000, .p = 4, .m = 160, .s = 2, .k = 0},
         {.frequency = 199875000, .p = 4, .m = 123, .s = 2, .k = 0},
-        {.frequency = 156000000, .p = 4, .m = 96,  .s = 2, .k = 0},
-        {.frequency = 99937000,  .p = 4, .m = 123, .s = 3, .k = 0},
+        {.frequency = 156000000, .p = 4, .m = 96, .s = 2, .k = 0},
+        {.frequency = 99937000, .p = 4, .m = 123, .s = 3, .k = 0},
     };
+
     void *pll_blk;
     struct ect_pll *pll;
     struct ect_pll_frequency *new_list;
-    bool present[ARRAY_SIZE(desired)] = {false};
-    int old_n, new_n;
-    int missing = 0;
-    int i, idx;
+
+    static struct ect_pll_frequency *override_list;
 
     pll_blk = ect_get_block(BLOCK_PLL);
     if (!pll_blk)
@@ -2854,56 +2853,24 @@ static int ect_override_g3d_pll_table(void) {
     if (!pll)
         return -ENODEV;
 
-    old_n = pll->num_of_frequency;
-
-    for (i = 0; i < ARRAY_SIZE(desired); i++) {
-        int j;
-
-        if (pll->frequency_list) {
-            for (j = 0; j < old_n; j++) {
-                if (pll->frequency_list[j].frequency == desired[i].frequency) {
-                    present[i] = true;
-                    break;
-                }
-            }
-        }
-
-        if (!present[i])
-            missing++;
-    }
-
-    if (!missing) {
-        pr_info(
-            "[ECT] g3d override: PLL_G3D already has all %zu target freqs\n",
-            ARRAY_SIZE(desired));
+    if (pll->num_of_frequency == ARRAY_SIZE(desired) && pll->frequency_list &&
+        !memcmp(pll->frequency_list, desired, sizeof(desired))) {
+        pr_info("[ECT] g3d override: PLL_G3D already matches desired table\n");
         return 0;
     }
 
-    new_n = old_n + missing;
-
-    new_list = kzalloc(sizeof(*new_list) * new_n, GFP_KERNEL);
+    new_list = kmemdup(desired, sizeof(desired), GFP_KERNEL);
     if (!new_list)
         return -ENOMEM;
 
-    /* Prepend the missing targets first to preserve priority order */
-    idx = 0;
-    for (i = 0; i < ARRAY_SIZE(desired); i++) {
-        if (present[i])
-            continue;
-        new_list[idx++] = desired[i];
-    }
+    kfree(override_list);
+    override_list = new_list;
 
-    /* Rest 1:1 übernehmen */
-    if (pll->frequency_list && old_n > 0)
-        memcpy(&new_list[idx], pll->frequency_list, sizeof(*new_list) * old_n);
+    pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %zu (replaced table)\n",
+            pll->num_of_frequency, ARRAY_SIZE(desired));
 
-    /* Replace pointer */
-    kfree(pll->frequency_list);
-    pll->frequency_list = new_list;
-    pll->num_of_frequency = new_n;
-
-    pr_info("[ECT] g3d override: PLL_G3D freqs %d -> %d (added %d entries)\n",
-            old_n, new_n, missing);
+    pll->frequency_list = override_list;
+    pll->num_of_frequency = ARRAY_SIZE(desired);
 
     return 0;
 }
