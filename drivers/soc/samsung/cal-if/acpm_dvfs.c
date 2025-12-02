@@ -45,7 +45,7 @@ static void dump_ipc_config(const char *fn, const char *tag,
               fn, tag, i, cfg->cmd[i], cfg->cmd[i]);
 }
 
-int exynos_acpm_set_rate(unsigned int id, unsigned long rate, const char *name)
+int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
@@ -59,9 +59,7 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate, const char *name)
 	config.cmd[1] = (unsigned int)rate;
 	config.cmd[2] = FREQ_REQ;
 	config.cmd[3] = 0;
-    
-    pr_info("%s: name=%s\n",__func__, name);
-    
+        
     dump_ipc_config(__func__, "before", &config, acpm_dvfs.size);
 
 	before = sched_clock();

@@ -96,7 +96,7 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 		if (cal_check_hiu_dvfs_id && cal_check_hiu_dvfs_id(id))
 			ret = exynos_hiu_set_freq(id, rate);
 		else
-			ret = exynos_acpm_set_rate(GET_IDX(id), rate, vclk->name);
+			ret = exynos_acpm_set_rate(GET_IDX(id), rate);
 		if (!ret) {
 			vclk = cmucal_get_node(id);
 			if (vclk)
