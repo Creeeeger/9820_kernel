@@ -454,8 +454,9 @@ static int ra_set_div_mux(struct cmucal_clk *clk, unsigned int params) {
     }
 
     return ret;
+}
 
-    static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
+static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         struct cmucal_mux *mux;
         unsigned int p_rate, sel = 0;
         unsigned int diff, min_diff = 0xFFFFFFFF;
