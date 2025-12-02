@@ -1,6 +1,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/pm_qos.h>
 #include <linux/slab.h>
 #include <linux/sched/clock.h>
@@ -258,8 +260,12 @@ static void acpm_dvfs_get_gpu_cold_temp_list(struct device *dev)
 		return;
 	}
 
-	of_property_read_u32_array(node, "gpu_cold_temp_list",
-					acpm_dvfs.gpu_coldtemp, proplen);
+	if (of_property_read_u32_array(node, "gpu_cold_temp_list", acpm_dvfs.gpu_coldtemp,
+				       proplen)) {
+		kfree(acpm_dvfs.gpu_coldtemp);
+		acpm_dvfs.gpu_coldtemp = NULL;
+		return;
+	}
 
 	acpm_dvfs.gpu_len = proplen;
 
