@@ -20,7 +20,53 @@ static struct acpm_dvfs acpm_dvfs;
 static struct acpm_dvfs acpm_noti_mif;
 static struct pm_qos_request mif_request_from_acpm;
 
-int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/ratelimit.h>
+
+#define ACPM_DVFS_LOG_PREFIX "acpm_dvfs: "
+#define ACPM_DBG pr_info
+#define ACPM_INFO pr_info
+#define ACPM_ERR pr_info
+
+static void dump_ipc_config(const char *fn, const char *tag,
+                struct ipc_config *cfg, unsigned int size)
+{
+    unsigned int i, dump_n;
+
+    /* size here is often “words” from IPC channel, but cmd[] is 4 words in this file */
+    dump_n = min_t(unsigned int, size, 4U);
+
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s %s: response=%d indirection=%d size=%u cmd@%p\n",
+          fn, tag, cfg->response, cfg->indirection, size, cfg->cmd);
+
+    for (i = 0; i < dump_n; i++)
+        ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s %s: cmd[%u]=0x%08x (%u)\n",
+              fn, tag, i, cfg->cmd[i], cfg->cmd[i]);
+}
+
+static void dump_acpm_state(const char *where)
+{
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: acpm_dvfs.dev=%p ch_num=%u size=%u\n",
+          where, acpm_dvfs.dev, acpm_dvfs.ch_num, acpm_dvfs.size);
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: acpm_noti_mif.dev=%p ch_num=%u size=%u\n",
+          where, acpm_noti_mif.dev, acpm_noti_mif.ch_num, acpm_noti_mif.size);
+
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: cpu_coldtemp=%p cpu_len=%d gpu_coldtemp=%p gpu_len=%d cpu_coldtemp_en=%d\n",
+          where,
+          acpm_dvfs.cpu_coldtemp, acpm_dvfs.cpu_len,
+          acpm_dvfs.gpu_coldtemp, acpm_dvfs.gpu_len,
+          !!acpm_dvfs.cpu_coldtemp);
+}
+
+static const char *safe_margin_name(int margin_id)
+{
+    if (margin_id < 0 || margin_id >= MAX_MARGIN_ID)
+        return "MARGIN_ID_OOR";
+    return margin_list[margin_id];
+}
+
+int exynos_acpm_set_rate(unsigned int id, unsigned long rate, const char *name)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
@@ -34,11 +80,25 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 	config.cmd[1] = (unsigned int)rate;
 	config.cmd[2] = FREQ_REQ;
 	config.cmd[3] = 0;
+    
+    pr_info("%s: name=%s\n",__func__, name);
+    
+    dump_ipc_config(__func__, "before", &config, acpm_dvfs.size);
 
 	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
 	after = sched_clock();
 	latency = after - before;
+    
+    dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
+
+    if (ret)
+        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ret=%d\n",
+             __func__, id, rate, latency, ret);
+    else
+        ACPM_DBG(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ok\n",
+             __func__, id, rate, latency);
+    
 	if (ret)
 		pr_err("%s:[%d] latency = %llu ret = %d",
 			__func__, id, latency, ret);
@@ -62,11 +122,23 @@ int exynos_acpm_set_init_freq(unsigned int dfs_id, unsigned long freq)
 	config.cmd[1] = (unsigned int)freq;
 	config.cmd[2] = DATA_INIT;
 	config.cmd[3] = SET_INIT_FREQ;
+    
+    dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
+
+    if (ret)
+        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ret=%d\n",
+             __func__, id, rate, latency, ret);
+    else
+        ACPM_DBG(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ok\n",
+             __func__, id, rate, latency);
 
 	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
 	after = sched_clock();
 	latency = after - before;
+    
+    dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
+
 	if (ret)
 		pr_err("%s:[%d] latency = %llu ret = %d",
 			__func__, id, latency, ret);
@@ -244,28 +316,43 @@ static void acpm_dvfs_get_cpu_cold_temp_list(struct device *dev)
 #ifndef CONFIG_EXYNOS_ACPM_THERMAL
 static void acpm_dvfs_get_gpu_cold_temp_list(struct device *dev)
 {
-	struct device_node *node = dev->of_node;
-	int proplen;
+    struct device_node *node = dev->of_node;
+    int proplen, i;
 
-	proplen = of_property_count_u32_elems(node, "gpu_cold_temp_list");
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: dev=%s node=%pOF\n",
+          __func__, dev_name(dev), node);
 
-	if (proplen <= 0)
-		return;
+    proplen = of_property_count_u32_elems(node, "gpu_cold_temp_list");
+    ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: gpu_cold_temp_list count=%d\n",
+          __func__, proplen);
 
-	acpm_dvfs.gpu_coldtemp = kcalloc(proplen, sizeof(u32), GFP_KERNEL);
-	if (!acpm_dvfs.gpu_coldtemp) {
-		pr_err("acpm_dvfs memory allocation fail\n");
-		return;
-	}
+    if (proplen <= 0)
+        return;
 
-	of_property_read_u32_array(node, "gpu_cold_temp_list",
-					acpm_dvfs.gpu_coldtemp, proplen);
+    acpm_dvfs.gpu_coldtemp = kcalloc(proplen, sizeof(u32), GFP_KERNEL);
+    if (!acpm_dvfs.gpu_coldtemp) {
+        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: kcalloc failed (count=%d)\n",
+             __func__, proplen);
+        return;
+    }
 
-	acpm_dvfs.gpu_len = proplen;
+    if (of_property_read_u32_array(node, "gpu_cold_temp_list",
+                       acpm_dvfs.gpu_coldtemp, proplen)) {
+        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: read gpu_cold_temp_list failed\n", __func__);
+        kfree(acpm_dvfs.gpu_coldtemp);
+        acpm_dvfs.gpu_coldtemp = NULL;
+        return;
+    }
 
-	acpm_dvfs.gpu_tmu_notifier.notifier_call = acpm_gpu_tmu_notifier;
-	if (exynos_gpu_add_notifier(&acpm_dvfs.gpu_tmu_notifier))
-		dev_err(dev, "failed register gpu tmu notifier\n");
+    acpm_dvfs.gpu_len = proplen;
+    for (i = 0; i < proplen; i++)
+        ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: gpu_coldtemp[%d]=0x%x (idx=%d)\n",
+              __func__, i, acpm_dvfs.gpu_coldtemp[i],
+              GET_IDX(acpm_dvfs.gpu_coldtemp[i]));
+
+    acpm_dvfs.gpu_tmu_notifier.notifier_call = acpm_gpu_tmu_notifier;
+    if (exynos_gpu_add_notifier(&acpm_dvfs.gpu_tmu_notifier))
+        dev_err(dev, "failed register gpu tmu notifier\n");
 }
 #endif
 

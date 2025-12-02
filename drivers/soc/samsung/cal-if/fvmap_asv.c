@@ -82,6 +82,8 @@ static void asv_voltage_init_table(struct asv_table_list **asv_table, char *name
 	if (margin_block)
 		margin_domain = ect_margin_get_domain(margin_block, name);
 
+	pr_info("[asv] initializing voltage table for domain %s\n", name);
+
 	*asv_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
 	if (*asv_table == NULL)
 		return;
@@ -112,6 +114,10 @@ static void asv_voltage_init_table(struct asv_table_list **asv_table, char *name
 					else
 						asv_entry->voltage[k] += margin_domain->offset_compact[j * margin_domain->num_of_group + k] * margin_domain->volt_step;
 				}
+
+				pr_info("[asv] %s table=%d lv=%d grp=%d idx=%u volt_uV=%u\n",
+					name, i, j, k, asv_entry->index,
+					asv_entry->voltage[k]);
 			}
 		}
 	}
@@ -132,6 +138,8 @@ static void asv_rcc_init_table(struct asv_table_list **rcc_table, char *name)
 	domain = ect_rcc_get_domain(rcc_block, name);
 	if (domain == NULL)
 		return;
+
+	pr_info("[asv] initializing RCC table for domain %s\n", name);
 
 	*rcc_table = kzalloc(sizeof(struct asv_table_list) * domain->num_of_table, GFP_KERNEL);
 	if (*rcc_table == NULL)
@@ -156,6 +164,10 @@ static void asv_rcc_init_table(struct asv_table_list **rcc_table, char *name)
 					rcc_entry->voltage[k] = table->rcc[j * domain->num_of_group + k];
 				else
 					rcc_entry->voltage[k] = table->rcc_compact[j * domain->num_of_group + k];
+
+				pr_info("[asv] RCC %s table=%d lv=%d grp=%d idx=%u volt_uV=%u\n",
+					name, i, j, k, rcc_entry->index,
+					rcc_entry->voltage[k]);
 			}
 		}
 	}

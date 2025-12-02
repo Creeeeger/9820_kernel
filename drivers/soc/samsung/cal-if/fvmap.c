@@ -500,7 +500,7 @@ int fvmap_get_voltage_table(unsigned int id, unsigned int *table) {
 
     rv = (struct rate_volt_header *)fvmap_ptr_add(fvmap_base,
                                                   hdr[idx].o_ratevolt);
-    num_lv = [idx].num_of_lv;
+    num_lv = hdr[idx].num_of_lv;
 
     if (num_lv <= 0) {
         pr_err("%s: id=%u idx=%d invalid num_of_lv=%d\n", __func__, id, idx,
