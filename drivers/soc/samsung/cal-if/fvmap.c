@@ -130,6 +130,31 @@ static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
     return best;
 }
 
+static int g3d_pll_idx_for_rate(const struct vclk *vclk, size_t member_idx,
+                                unsigned int rate_khz) {
+    struct cmucal_pll *pll;
+    unsigned int clk_id;
+    int idx;
+
+    if (!vclk || member_idx >= vclk->num_list)
+        return -EINVAL;
+
+    clk_id = vclk->list[member_idx];
+    if (GET_TYPE(clk_id) != PLL_TYPE)
+        return -EOPNOTSUPP;
+
+    pll = cmucal_get_node(clk_id);
+    if (!pll || !pll->rate_table || !pll->rate_count)
+        return -EINVAL;
+
+    for (idx = 0; idx < pll->rate_count; idx++) {
+        if (pll->rate_table[idx].rate == rate_khz * 1000U)
+            return idx;
+    }
+
+    return -ENOENT;
+}
+
 static int g3d_ensure_lut(struct vclk *vclk, size_t manual_lv) {
     size_t i;
 
@@ -234,11 +259,17 @@ static int patch_tables(volatile struct fvmap_header *hdr,
 
         for (k = 0; k < members; k++) {
             unsigned int p;
+            int pll_param = g3d_pll_idx_for_rate(vclk, k, rate);
 
-            if (lv < old_lv)
+            if (pll_param >= 0) {
+                p = pll_param;
+                pr_info("%s: lv=%zu member=%zu mapped rate=%u to pll_idx=%u\n",
+                        __func__, lv, k, rate, p);
+            } else if (lv < old_lv) {
                 p = old_param->val[src_lv * members + k];
-            else
+            } else {
                 p = new_param->val[(lv - 1) * members + k];
+            }
 
             new_param->val[lv * members + k] = p;
             vclk->lut[lv].params[k] = p;
