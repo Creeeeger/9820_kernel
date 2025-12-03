@@ -43,6 +43,61 @@ static void vclk_debug_dump_lut(struct vclk *vclk) {
     }
 }
 
+static int vclk_pll_idx_for_rate(struct vclk *vclk, size_t member_idx,
+                                 unsigned int rate_khz)
+{
+    struct cmucal_pll *pll;
+    unsigned int clk_id;
+    int idx;
+
+    if (!vclk || member_idx >= vclk->num_list)
+        return -EINVAL;
+
+    clk_id = vclk->list[member_idx];
+    if (!IS_PLL(clk_id))
+        return -EOPNOTSUPP;
+
+    pll = cmucal_get_node(clk_id);
+    if (!pll || !pll->rate_table || pll->rate_count <= 0)
+        return -EINVAL;
+
+    for (idx = 0; idx < pll->rate_count; idx++) {
+        if (pll->rate_table[idx].rate / 1000 == rate_khz)
+            return idx;
+    }
+
+    return -ENOENT;
+}
+
+static void vclk_normalize_pll_params(struct vclk *vclk)
+{
+    int i, k;
+
+    if (!vclk || !vclk->lut)
+        return;
+
+    for (i = 0; i < vclk->num_rates; i++) {
+        struct vclk_lut *lut = &vclk->lut[i];
+
+        if (!lut->params)
+            continue;
+
+        for (k = 0; k < vclk->num_list; k++) {
+            int pll_idx = vclk_pll_idx_for_rate(vclk, k, lut->rate);
+
+            if (pll_idx < 0)
+                continue;
+
+            if (lut->params[k] != pll_idx) {
+                pr_info("[vclk][dfs] fix PLL param: %s lut[%d] clk[%d]=0x%x %d->%d\n",
+                        vclk->name ? vclk->name : "(null)", i, k,
+                        vclk->list[k], lut->params[k], pll_idx);
+                lut->params[k] = pll_idx;
+            }
+        }
+    }
+}
+
 static struct vclk_lut *get_lut(struct vclk *vclk, unsigned int rate) {
     int i;
 
@@ -944,11 +999,23 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
             /* Patch PLL params */
             for (k = 0; k < vclk->num_list; k++) {
                 if (IS_PLL(vclk->list[k])) {
-                    pr_info("[vclk][dfs] override[%zu] patch PLL at "
-                            "list[%d]=%u: %d -> %lu\n",
-                            override_idx, k, vclk->list[k], override_params[k],
-                            entry->rate_khz);
-                    override_params[k] = entry->rate_khz;
+                    int pll_idx =
+                        vclk_pll_idx_for_rate(vclk, k, entry->rate_khz);
+
+                    if (pll_idx >= 0) {
+                        pr_info("[vclk][dfs] override[%zu] patch PLL at "
+                                "list[%d]=%u: %d -> idx %d (rate %lu kHz)\n",
+                                override_idx, k, vclk->list[k],
+                                override_params[k], pll_idx,
+                                entry->rate_khz);
+                        override_params[k] = pll_idx;
+                    } else {
+                        pr_info("[vclk][dfs] override[%zu] keep template PLL "
+                                "param for list[%d]=%u (rate %lu kHz) "
+                                "lookup_ret=%d\n",
+                                override_idx, k, vclk->list[k],
+                                entry->rate_khz, pll_idx);
+                    }
                 }
             }
 
@@ -1013,6 +1080,9 @@ static int vclk_get_dfs_info(struct vclk *vclk) {
             vclk->name, vclk->num_rates, vclk->num_list, vclk->min_freq,
             vclk->max_freq, vclk->boot_freq, vclk->resume_freq,
             minmax_table ? "override" : "absent");
+
+    /* Make sure PLL params reflect actual PLL table indices for this rate */
+    vclk_normalize_pll_params(vclk);
 
     if (!strcmp(vclk->name, "dvfs_g3d")) {
         pr_info("[vclk] dvfs_g3d boot_idx=%d resume_idx=%d table_ver=%u\n",
