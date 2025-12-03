@@ -158,6 +158,83 @@ err_alloc:
     return -ENOMEM;
 }
 
+static const char *cmucal_type_name(unsigned int clk_id)
+{
+    switch (GET_TYPE(clk_id)) {
+    case FIXED_RATE_TYPE:   return "FIXED_RATE";
+    case FIXED_FACTOR_TYPE: return "FIXED_FACTOR";
+    case PLL_TYPE:          return "PLL";
+    case MUX_TYPE:          return "MUX";
+    case DIV_TYPE:          return "DIV";
+    case GATE_TYPE:         return "GATE";
+    case QCH_TYPE:          return "QCH";
+    case SFR_BLOCK_TYPE:    return "SFR_BLOCK";
+    case SFR_TYPE:          return "SFR";
+    case SFR_ACCESS_TYPE:   return "SFR_ACCESS";
+    case VCLK_TYPE:         return "VCLK";
+    case OPTION_TYPE:       return "OPTION";
+    case CLKOUT_TYPE:       return "CLKOUT";
+    default:                return "UNKNOWN";
+    }
+}
+
+static void g3d_dump_vclk_lut_params(const struct vclk *vclk, size_t members)
+{
+    size_t lv, k;
+
+    if (!vclk || !vclk->lut || !vclk->list || !vclk->num_rates) {
+        pr_info("%s: invalid vclk/lut\n", __func__);
+        return;
+    }
+
+    /* members kommt bei dir aus hdr->num_of_members; fallback auf vclk->num_list */
+    if (!members)
+        members = vclk->num_list;
+
+    pr_info("=== %s: vclk=%s id=0x%08x num_rates=%u num_list=%u members=%zu ===\n",
+        __func__, vclk->name ?: "?", vclk->id, vclk->num_rates, vclk->num_list, members);
+
+    /* Header: member Infos */
+    for (k = 0; k < vclk->num_list; k++) {
+        unsigned int clk_id = vclk->list[k];
+        pr_info("member[%zu]: id=0x%08x type=%s idx=%u\n",
+            k, clk_id, cmucal_type_name(clk_id), GET_IDX(clk_id));
+    }
+
+    /* Dump pro Level */
+    for (lv = 0; lv < vclk->num_rates; lv++) {
+        const struct vclk_lut *lut = &vclk->lut[lv];
+
+        if (!lut->params) {
+            pr_info("lv=%zu rate=%u: params=NULL\n", lv, lut->rate);
+            continue;
+        }
+
+        pr_info("lv=%zu rate=%u kHz:\n", lv, lut->rate);
+
+        for (k = 0; k < members; k++) {
+            unsigned int clk_id = (k < vclk->num_list) ? vclk->list[k] : EMPTY_CLK_ID;
+            unsigned int p = lut->params[k];
+
+            if (GET_TYPE(clk_id) == PLL_TYPE) {
+                struct cmucal_pll *pll = cmucal_get_node(clk_id);
+
+                if (pll && pll->rate_table && p < pll->rate_count) {
+                    const struct cmucal_pll_table *t = &pll->rate_table[p];
+                    pr_info("  k=%zu id=0x%08x(PLL) param=%u => pll_rate=%u p/m/s/k=%u/%u/%u/%d\n",
+                        k, clk_id, p, t->rate, t->pdiv, t->mdiv, t->sdiv, t->kdiv);
+                } else {
+                    pr_info("  k=%zu id=0x%08x(PLL) param=%u (no table/oor)\n",
+                        k, clk_id, p);
+                }
+            } else {
+                pr_info("  k=%zu id=0x%08x(%s) param=%u\n",
+                    k, clk_id, cmucal_type_name(clk_id), p);
+            }
+        }
+    }
+}
+
 static int patch_tables(volatile struct fvmap_header *hdr,
                         const struct rate_volt_header *old_rv,
                         const struct dvfs_table *old_param,
@@ -229,6 +306,8 @@ static int patch_tables(volatile struct fvmap_header *hdr,
 
     hdr->num_of_lv = manual_lv;
     pr_info("%s: patched num_of_lv=%zu\n", __func__, manual_lv);
+    
+    g3d_dump_vclk_lut_params(vclk, hdr->num_of_members);
     return 0;
 }
 
