@@ -40,24 +40,11 @@
 
 int kbase_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 {
-	int ret;
-
-	ret = kbase_hwaccess_pm_powerup(kbdev, flags);
-
-	pr_info("kbase: pm_powerup kbdev=%p dev=%s flags=0x%x ret=%d\n",
-		kbdev,
-		kbdev ? kbdev->devname : "<null>",
-		flags, ret);
-
-	return ret;
+	return kbase_hwaccess_pm_powerup(kbdev, flags);
 }
 
 void kbase_pm_halt(struct kbase_device *kbdev)
 {
-	pr_info("kbase: pm_halt kbdev=%p dev=%s\n",
-		kbdev,
-		kbdev ? kbdev->devname : "<null>");
-
 	kbase_hwaccess_pm_halt(kbdev);
 }
 
@@ -117,10 +104,6 @@ int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev,
 	}
 
 	kbase_pm_unlock(kbdev);
-	pr_info("kbase: pm_context_active kbdev=%p dev=%s active_count=%d suspend_handler=%d\n",
-		kbdev,
-		kbdev ? kbdev->devname : "<null>",
-		kbdev->pm.active_count, suspend_handler);
 	dev_dbg(kbdev->dev, "%s %d\n", __func__, kbdev->pm.active_count);
 
 	return 0;
@@ -155,10 +138,6 @@ void kbase_pm_context_idle(struct kbase_device *kbdev)
 	}
 
 	kbase_pm_unlock(kbdev);
-	pr_info("kbase: pm_context_idle kbdev=%p dev=%s active_count=%d pid=%d\n",
-		kbdev,
-		kbdev ? kbdev->devname : "<null>",
-		kbdev->pm.active_count, current->pid);
 	dev_dbg(kbdev->dev, "%s %d (pid = %d)\n", __func__,
 		kbdev->pm.active_count, current->pid);
 }
@@ -304,11 +283,6 @@ void kbase_pm_driver_resume(struct kbase_device *kbdev, bool arb_gpu_start)
 	/* Resume HW counters intermediaries. */
 	kbase_vinstr_resume(kbdev->vinstr_ctx);
 	kbase_kinstr_prfcnt_resume(kbdev->kinstr_prfcnt_ctx);
-
-	pr_info("kbase: pm_driver_resume kbdev=%p dev=%s arb_gpu_start=%d\n",
-		kbdev,
-		kbdev ? kbdev->devname : "<null>",
-		arb_gpu_start);
 }
 
 int kbase_pm_suspend(struct kbase_device *kbdev)

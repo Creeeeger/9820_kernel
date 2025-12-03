@@ -478,18 +478,6 @@ void kbase_gpuprops_set(struct kbase_device *kbdev)
 	 */
 	kbase_gpuprops_req_curr_config_update(kbdev);
 	kbase_gpuprops_get_curr_config_props(kbdev, &gpu_props->curr_config);
-
-	pr_info("kbase: gpuprops_set kbdev=%p gpu_id=0x%08x cores=%u core_groups=%u as=%u job_slots=%u va_bits=%u pa_bits=%u l2_assoc=%u l2_bus_width=%u\n",
-		kbdev,
-		raw->gpu_id,
-		gpu_props->num_cores,
-		gpu_props->num_core_groups,
-		gpu_props->num_address_spaces,
-		gpu_props->num_job_slots,
-		gpu_props->mmu.va_bits,
-		gpu_props->mmu.pa_bits,
-		gpu_props->l2_props.associativity,
-		gpu_props->l2_props.external_bus_width);
 }
 
 int kbase_gpuprops_set_features(struct kbase_device *kbdev)
@@ -903,9 +891,6 @@ int kbase_gpuprops_populate_user_buffer(struct kbase_device *kbdev)
 		}
 	}
 
-	pr_info("kbase: gpuprops_populate_user_buffer kbdev=%p entries=%u buffer_size=%u\n",
-		kbdev, count, kprops->prop_buffer_size);
-
 	return 0;
 }
 
@@ -927,9 +912,6 @@ int kbase_device_populate_max_freq(struct kbase_device *kbdev)
 #else
 	core_props->gpu_freq_khz_max = DEFAULT_GPU_FREQ_KHZ_MAX;
 #endif
-
-	pr_info("kbase: device_populate_max_freq kbdev=%p gpu_freq_khz_max=%u\n",
-		kbdev, core_props->gpu_freq_khz_max);
 
 	return 0;
 }

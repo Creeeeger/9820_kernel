@@ -28,11 +28,8 @@ int kbasep_platform_device_init(struct kbase_device *kbdev)
 	struct kbase_platform_funcs_conf *platform_funcs_p;
 
 	platform_funcs_p = (struct kbase_platform_funcs_conf *)PLATFORM_FUNCS;
-	if (platform_funcs_p && platform_funcs_p->platform_init_func) {
-		pr_info("kbase: platform_device_init kbdev=%p funcs=%p\n",
-			kbdev, platform_funcs_p);
+	if (platform_funcs_p && platform_funcs_p->platform_init_func)
 		return platform_funcs_p->platform_init_func(kbdev);
-	}
 
 	return 0;
 }
@@ -42,11 +39,8 @@ void kbasep_platform_device_term(struct kbase_device *kbdev)
 	struct kbase_platform_funcs_conf *platform_funcs_p;
 
 	platform_funcs_p = (struct kbase_platform_funcs_conf *)PLATFORM_FUNCS;
-	if (platform_funcs_p && platform_funcs_p->platform_term_func) {
-		pr_info("kbase: platform_device_term kbdev=%p funcs=%p\n",
-			kbdev, platform_funcs_p);
+	if (platform_funcs_p && platform_funcs_p->platform_term_func)
 		platform_funcs_p->platform_term_func(kbdev);
-	}
 }
 
 int kbasep_platform_device_late_init(struct kbase_device *kbdev)
@@ -54,11 +48,8 @@ int kbasep_platform_device_late_init(struct kbase_device *kbdev)
 	struct kbase_platform_funcs_conf *platform_funcs_p;
 
 	platform_funcs_p = (struct kbase_platform_funcs_conf *)PLATFORM_FUNCS;
-	if (platform_funcs_p && platform_funcs_p->platform_late_init_func) {
-		pr_info("kbase: platform_device_late_init kbdev=%p funcs=%p\n",
-			kbdev, platform_funcs_p);
+	if (platform_funcs_p && platform_funcs_p->platform_late_init_func)
 		platform_funcs_p->platform_late_init_func(kbdev);
-	}
 
 	return 0;
 }
@@ -68,11 +59,8 @@ void kbasep_platform_device_late_term(struct kbase_device *kbdev)
 	struct kbase_platform_funcs_conf *platform_funcs_p;
 
 	platform_funcs_p = (struct kbase_platform_funcs_conf *)PLATFORM_FUNCS;
-	if (platform_funcs_p && platform_funcs_p->platform_late_term_func) {
-		pr_info("kbase: platform_device_late_term kbdev=%p funcs=%p\n",
-			kbdev, platform_funcs_p);
+	if (platform_funcs_p && platform_funcs_p->platform_late_term_func)
 		platform_funcs_p->platform_late_term_func(kbdev);
-	}
 }
 
 #if !MALI_USE_CSF

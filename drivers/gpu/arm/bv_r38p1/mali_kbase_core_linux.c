@@ -5495,8 +5495,6 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
-		pr_info("kbase: platform_device_probe kbdev=%p dev=%s\n",
-			kbdev, dev_name(kbdev->dev));
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();

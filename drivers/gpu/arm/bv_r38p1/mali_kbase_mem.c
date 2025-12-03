@@ -180,12 +180,6 @@ static void kbase_region_tracker_insert(struct kbase_va_region *new_reg)
 	rb_link_node(&(new_reg->rblink), parent, link);
 
 	rb_insert_color(&(new_reg->rblink), rbtree);
-
-	pr_info("kbase: region_insert reg=%p start_pfn=0x%llx nr_pages=%zu flags=0x%lx\n",
-		new_reg,
-		(unsigned long long)new_reg->start_pfn,
-		new_reg->nr_pages,
-		new_reg->flags);
 }
 
 static struct kbase_va_region *find_region_enclosing_range_rbtree(
@@ -1567,13 +1561,6 @@ struct kbase_va_region *kbase_alloc_free_region(struct rb_root *rbtree,
 
 	INIT_LIST_HEAD(&new_reg->jit_node);
 	INIT_LIST_HEAD(&new_reg->link);
-
-	pr_info("kbase: alloc_free_region reg=%p rbtree=%p start_pfn=0x%llx nr_pages=%zu flags=0x%lx\n",
-		new_reg,
-		rbtree,
-		(unsigned long long)new_reg->start_pfn,
-		new_reg->nr_pages,
-		new_reg->flags);
 
 	return new_reg;
 }
