@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/vmalloc.h>
 
 #define ALIGNMENT_SIZE 4
@@ -2875,15 +2876,29 @@ static int ect_override_g3d_pll_table(void) {
     return 0;
 }
 
+static bool ect_is_g3d_name(const char *name) {
+    if (!name)
+        return false;
+
+    return strstr(name, "g3d") || strstr(name, "G3D");
+}
+
 static void ect_print_dvfs_block(struct ect_dvfs_header *h) {
     int i, j, k;
-
-    pr_info("[ECT] DVFS: parser=%d ver=%c%c%c%c domains=%d\n",
-            h->parser_version, h->version[0], h->version[1], h->version[2],
-            h->version[3], h->num_of_domain);
+    bool printed = false;
 
     for (i = 0; i < h->num_of_domain; i++) {
         struct ect_dvfs_domain *d = &h->domain_list[i];
+
+        if (!ect_is_g3d_name(d->domain_name))
+            continue;
+
+        if (!printed) {
+            pr_info("[ECT] DVFS: parser=%d ver=%c%c%c%c domains=%d\n",
+                    h->parser_version, h->version[0], h->version[1],
+                    h->version[2], h->version[3], h->num_of_domain);
+            printed = true;
+        }
 
         pr_info("[ECT]  DVFS domain=%s max=%u min=%u boot_idx=%d resume_idx=%d "
                 "mode=0x%x clocks=%d levels=%d\n",
@@ -2917,13 +2932,21 @@ static void ect_print_dvfs_block(struct ect_dvfs_header *h) {
 
 static void ect_print_asv_block(struct ect_voltage_header *h) {
     int i, j, k, g;
-
-    pr_info("[ECT] ASV: parser=%d ver=%c%c%c%c domains=%d\n", h->parser_version,
-            h->version[0], h->version[1], h->version[2], h->version[3],
-            h->num_of_domain);
+    bool printed = false;
 
     for (i = 0; i < h->num_of_domain; i++) {
         struct ect_voltage_domain *d = &h->domain_list[i];
+
+        if (!ect_is_g3d_name(d->domain_name))
+            continue;
+
+        if (!printed) {
+            pr_info("[ECT] ASV: parser=%d ver=%c%c%c%c domains=%d\n",
+                    h->parser_version, h->version[0], h->version[1],
+                    h->version[2], h->version[3], h->num_of_domain);
+            printed = true;
+        }
+
         pr_info("[ECT]  ASV domain=%s groups=%d levels=%d tables=%d\n",
                 d->domain_name, d->num_of_group, d->num_of_level,
                 d->num_of_table);

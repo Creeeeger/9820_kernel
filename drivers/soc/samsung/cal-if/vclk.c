@@ -1,5 +1,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/percpu.h>
+#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/types.h>
@@ -13,6 +15,60 @@
 #include "vclk.h"
 #include <linux/errno.h>
 #include <linux/printk.h>
+
+static DEFINE_PER_CPU(bool, vclk_log_enabled);
+
+struct vclk_log_ctx {
+    bool prev_enabled;
+};
+
+static bool vclk_is_g3d_name(const char *name) {
+    if (!name)
+        return false;
+
+    return strstr(name, "g3d") || strstr(name, "G3D");
+}
+
+static bool vclk_should_log(unsigned int id, const char *name) {
+    return id == 10 || GET_IDX(id) == 10 || vclk_is_g3d_name(name);
+}
+
+static struct vclk_log_ctx vclk_log_push(unsigned int id, const char *name) {
+    struct vclk_log_ctx ctx;
+
+    migrate_disable();
+    ctx.prev_enabled = this_cpu_read(vclk_log_enabled);
+    this_cpu_write(vclk_log_enabled, vclk_should_log(id, name));
+
+    return ctx;
+}
+
+static void vclk_log_pop(struct vclk_log_ctx ctx) {
+    this_cpu_write(vclk_log_enabled, ctx.prev_enabled);
+    migrate_enable();
+}
+
+static bool vclk_log_current(void) {
+    return this_cpu_read(vclk_log_enabled);
+}
+
+static inline struct vclk_log_ctx vclk_log_push_vclk(struct vclk *vclk) {
+    return vclk_log_push(vclk ? vclk->id : 0, vclk ? vclk->name : NULL);
+}
+
+#undef pr_info
+#define pr_info(fmt, ...)                                                    \
+    do {                                                                     \
+        if (vclk_log_current())                                              \
+            printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);                    \
+    } while (0)
+
+#undef pr_cont
+#define pr_cont(fmt, ...)                                                    \
+    do {                                                                     \
+        if (vclk_log_current())                                              \
+            printk(KERN_CONT fmt, ##__VA_ARGS__);                            \
+    } while (0)
 
 #define ECT_DUMMY_SFR (0xFFFFFFFF)
 unsigned int asv_table_ver = 0;
@@ -274,6 +330,8 @@ static int __vclk_set_rate(unsigned int id, unsigned int rate, int cmd) {
 }
 
 int vclk_set_rate(unsigned int id, unsigned long rate) {
+    struct vclk *vclk = cmucal_get_node(id);
+    struct vclk_log_ctx log = vclk_log_push_vclk(vclk);
     int ret;
 
     pr_info("VCLK: vclk_set_rate: enter id=%u rate=%lu\n", id, rate);
@@ -281,10 +339,13 @@ int vclk_set_rate(unsigned int id, unsigned long rate) {
     ret = __vclk_set_rate(id, (unsigned int)rate, ONESHOT_TRANS);
 
     pr_info("VCLK: vclk_set_rate: exit id=%u rate=%lu ret=%d\n", id, rate, ret);
+    vclk_log_pop(log);
     return ret;
 }
 
 int vclk_set_rate_switch(unsigned int id, unsigned long rate) {
+    struct vclk *vclk = cmucal_get_node(id);
+    struct vclk_log_ctx log = vclk_log_push_vclk(vclk);
     int ret;
 
     pr_info("VCLK: vclk_set_rate_switch: enter id=%u rate=%lu "
@@ -295,10 +356,13 @@ int vclk_set_rate_switch(unsigned int id, unsigned long rate) {
 
     pr_info("VCLK: vclk_set_rate_switch: exit id=%u rate=%lu ret=%d\n", id,
             rate, ret);
+    vclk_log_pop(log);
     return ret;
 }
 
 int vclk_set_rate_restore(unsigned int id, unsigned long rate) {
+    struct vclk *vclk = cmucal_get_node(id);
+    struct vclk_log_ctx log = vclk_log_push_vclk(vclk);
     int ret;
 
     pr_info("VCLK: vclk_set_rate_restore: enter id=%u rate=%lu "
@@ -309,13 +373,17 @@ int vclk_set_rate_restore(unsigned int id, unsigned long rate) {
 
     pr_info("VCLK: vclk_set_rate_restore: exit id=%u rate=%lu ret=%d\n", id,
             rate, ret);
+    vclk_log_pop(log);
     return ret;
 }
 
 unsigned long vclk_recalc_rate(unsigned int id) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
     int i, ret;
 
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
     pr_info("VCLK: vclk_recalc_rate: enter id=%u IS_VCLK=%d\n", id,
             IS_VCLK(id));
 
@@ -324,14 +392,15 @@ unsigned long vclk_recalc_rate(unsigned int id) {
         pr_info("VCLK: vclk_recalc_rate: id=%u not VCLK -> "
                 "ra_recalc_rate(%u)=%lu\n",
                 id, id, r);
+        vclk_log_pop(log);
         return r;
     }
 
-    vclk = cmucal_get_node(id);
     pr_info("VCLK: vclk_recalc_rate: cmucal_get_node(%u) -> vclk=%p\n", id,
             vclk);
     if (!vclk) {
         pr_info("VCLK: vclk_recalc_rate: ERROR vclk NULL (id=%u) -> 0\n", id);
+        vclk_log_pop(log);
         return 0;
     }
 
@@ -352,6 +421,7 @@ unsigned long vclk_recalc_rate(unsigned int id) {
                     "vrate=0\n",
                     id);
             vclk->vrate = 0;
+            vclk_log_pop(log);
             return 0;
         }
 
@@ -392,6 +462,7 @@ unsigned long vclk_recalc_rate(unsigned int id) {
                     "vrate=0\n",
                     id);
             vclk->vrate = 0;
+            vclk_log_pop(log);
             return 0;
         }
 
@@ -408,22 +479,26 @@ unsigned long vclk_recalc_rate(unsigned int id) {
 
     pr_info("VCLK: vclk_recalc_rate: exit id=%u vrate(new)=%u\n", id,
             vclk->vrate);
+    vclk_log_pop(log);
     return vclk->vrate;
 }
 
 unsigned long vclk_get_rate(unsigned int id) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
 
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
     pr_info("VCLK: vclk_get_rate: enter id=%u IS_VCLK=%d\n", id, IS_VCLK(id));
 
     if (IS_VCLK(id)) {
-        vclk = cmucal_get_node(id);
         pr_info("VCLK: vclk_get_rate: cmucal_get_node(%u) -> vclk=%p\n", id,
                 vclk);
         if (vclk) {
             pr_info(
                 "VCLK: vclk_get_rate: return vclk->vrate=%u (vclk->id=%u)\n",
                 vclk->vrate, vclk->id);
+            vclk_log_pop(log);
             return vclk->vrate;
         }
         pr_info("VCLK: vclk_get_rate: vclk NULL -> return 0\n");
@@ -431,6 +506,7 @@ unsigned long vclk_get_rate(unsigned int id) {
         pr_info("VCLK: vclk_get_rate: id=%u not VCLK -> return 0\n", id);
     }
 
+    vclk_log_pop(log);
     return 0;
 }
 
@@ -470,11 +546,14 @@ int vclk_set_disable(unsigned int id) {
 
 unsigned int vclk_get_lv_num(unsigned int id) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
     int lv_num = 0;
+
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
 
     pr_info("VCLK: vclk_get_lv_num: enter id=%u\n", id);
 
-    vclk = cmucal_get_node(id);
     pr_info("VCLK: vclk_get_lv_num: cmucal_get_node(%u) -> vclk=%p\n", id,
             vclk);
 
@@ -486,16 +565,20 @@ unsigned int vclk_get_lv_num(unsigned int id) {
         lv_num = vclk->num_rates;
 
     pr_info("VCLK: vclk_get_lv_num: exit id=%u lv_num=%d\n", id, lv_num);
+    vclk_log_pop(log);
     return lv_num;
 }
 
 unsigned int vclk_get_max_freq(unsigned int id) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
     int rate = 0;
+
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
 
     pr_info("VCLK: vclk_get_max_freq: enter id=%u\n", id);
 
-    vclk = cmucal_get_node(id);
     pr_info("VCLK: vclk_get_max_freq: cmucal_get_node(%u) -> vclk=%p\n", id,
             vclk);
 
@@ -507,16 +590,20 @@ unsigned int vclk_get_max_freq(unsigned int id) {
         rate = vclk->max_freq;
 
     pr_info("VCLK: vclk_get_max_freq: exit id=%u max_freq=%d\n", id, rate);
+    vclk_log_pop(log);
     return rate;
 }
 
 unsigned int vclk_get_min_freq(unsigned int id) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
     int rate = 0;
+
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
 
     pr_info("VCLK: vclk_get_min_freq: enter id=%u\n", id);
 
-    vclk = cmucal_get_node(id);
     pr_info("VCLK: vclk_get_min_freq: cmucal_get_node(%u) -> vclk=%p\n", id,
             vclk);
 
@@ -528,22 +615,27 @@ unsigned int vclk_get_min_freq(unsigned int id) {
         rate = vclk->min_freq;
 
     pr_info("VCLK: vclk_get_min_freq: exit id=%u min_freq=%d\n", id, rate);
+    vclk_log_pop(log);
     return rate;
 }
 
 int vclk_get_rate_table(unsigned int id, unsigned long *table) {
     struct vclk *vclk;
+    struct vclk_log_ctx log;
     int i;
     unsigned int nums = 0;
 
+    vclk = cmucal_get_node(id);
+    log = vclk_log_push_vclk(vclk);
+
     pr_info("VCLK: vclk_get_rate_table: enter id=%u table=%p\n", id, table);
 
-    vclk = cmucal_get_node(id);
     pr_info("VCLK: vclk_get_rate_table: cmucal_get_node(%u) -> vclk=%p\n", id,
             vclk);
 
     if (!vclk) {
         pr_info("VCLK: vclk_get_rate_table: vclk NULL -> return 0\n");
+        vclk_log_pop(log);
         return 0;
     }
 
@@ -553,12 +645,14 @@ int vclk_get_rate_table(unsigned int id, unsigned long *table) {
 
     if (!IS_VCLK(vclk->id)) {
         pr_info("VCLK: vclk_get_rate_table: vclk->id not VCLK -> return 0\n");
+        vclk_log_pop(log);
         return 0;
     }
 
     if (!table) {
         pr_info(
             "VCLK: vclk_get_rate_table: table NULL (caller bug) -> return 0\n");
+        vclk_log_pop(log);
         return 0;
     }
 
@@ -575,6 +669,7 @@ int vclk_get_rate_table(unsigned int id, unsigned long *table) {
     }
 
     pr_info("VCLK: vclk_get_rate_table: exit id=%u nums=%u\n", id, nums);
+    vclk_log_pop(log);
     return nums;
 }
 
@@ -1310,17 +1405,24 @@ static void vclk_bind(void) {
             continue;
         }
 
-        ret = vclk_get_dfs_info(vclk);
-        if (ret == -EVCLKNOENT) {
-            if (!warn_on)
-                pr_warn("ECT DVFS not found\n");
-            warn_on = 1;
-        } else if (ret) {
-            pr_err("ECT DVFS [%s] not found %d\n", vclk->name, ret);
-        } else {
-            ret = vclk_get_asv_info(vclk);
-            if (ret)
-                pr_err("ECT ASV [%s] not found %d\n", vclk->name, ret);
+        /* Enable verbose logging only when this vclk represents G3D */
+        {
+            struct vclk_log_ctx log = vclk_log_push_vclk(vclk);
+
+            ret = vclk_get_dfs_info(vclk);
+            if (ret == -EVCLKNOENT) {
+                if (!warn_on)
+                    pr_warn("ECT DVFS not found\n");
+                warn_on = 1;
+            } else if (ret) {
+                pr_err("ECT DVFS [%s] not found %d\n", vclk->name, ret);
+            } else {
+                ret = vclk_get_asv_info(vclk);
+                if (ret)
+                    pr_err("ECT ASV [%s] not found %d\n", vclk->name, ret);
+            }
+
+            vclk_log_pop(log);
         }
     }
 }
