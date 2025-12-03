@@ -1,84 +1,13 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
-#include <linux/percpu.h>
 #include <linux/printk.h>
-#include <linux/sched.h>
-#include <linux/string.h>
 #include <linux/types.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/exynos-pmu.h>
 
 #include "cmucal.h"
 #include "ra.h"
-
-static DEFINE_PER_CPU(bool, ra_log_enabled);
-
-struct ra_log_ctx {
-    bool prev_enabled;
-};
-
-static bool ra_is_g3d_name(const char *name) {
-    if (!name)
-        return false;
-
-    return strstr(name, "g3d") || strstr(name, "G3D");
-}
-
-static bool ra_should_log(unsigned int id, const char *name) {
-    return id == 10 || GET_IDX(id) == 10 || ra_is_g3d_name(name);
-}
-
-static struct ra_log_ctx ra_log_push(unsigned int id, const char *name) {
-    struct ra_log_ctx ctx;
-
-    migrate_disable();
-    ctx.prev_enabled = this_cpu_read(ra_log_enabled);
-    this_cpu_write(ra_log_enabled, ra_should_log(id, name));
-
-    return ctx;
-}
-
-static void ra_log_pop(struct ra_log_ctx ctx) {
-    this_cpu_write(ra_log_enabled, ctx.prev_enabled);
-    migrate_enable();
-}
-
-static bool ra_log_current(void) {
-    return this_cpu_read(ra_log_enabled);
-}
-
-static inline struct ra_log_ctx ra_log_push_clk(struct cmucal_clk *clk,
-                                                unsigned int id) {
-    return ra_log_push(id, clk ? clk->name : NULL);
-}
-
-static bool ra_list_has_g3d(unsigned int *list, unsigned int num_list) {
-    unsigned int i;
-
-    if (!list)
-        return false;
-
-    for (i = 0; i < num_list; i++) {
-        struct cmucal_clk *clk;
-
-        if (ra_should_log(list[i], NULL))
-            return true;
-
-        clk = cmucal_get_node(list[i]);
-        if (ra_should_log(list[i], clk ? clk->name : NULL))
-            return true;
-    }
-
-    return false;
-}
-
-#undef pr_info
-#define pr_info(fmt, ...)                                                    \
-    do {                                                                     \
-        if (ra_log_current())                                                \
-            printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);                    \
-    } while (0)
 
 static enum trans_opt ra_get_trans_opt(unsigned int to, unsigned int from) {
     if (from == to)
@@ -1234,14 +1163,11 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         unsigned int type = GET_TYPE(id);
         int ret;
         unsigned int after = 0;
-        struct ra_log_ctx log;
-
-        clk = cmucal_get_node(id);
-        log = ra_log_push_clk(clk, id);
 
         pr_info("RA: ra_set_value: enter id=0x%x type=0x%x params=0x%x\n", id,
                 type, params);
 
+        clk = cmucal_get_node(id);
         pr_info("RA: ra_set_value: cmucal_get_node(id=0x%x) -> clk=%p\n", id,
                 clk);
 
@@ -1249,8 +1175,7 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             pr_err("RA: ra_set_value: ERROR clk NULL id=0x%x type=0x%x "
                    "params=0x%x\n",
                    id, type, params);
-            ret = -EVCLKINVAL;
-            goto out;
+            return -EVCLKINVAL;
         }
 
         pr_info("RA: ra_set_value: clk name=%s id=0x%x type=0x%x params=0x%x\n",
@@ -1306,8 +1231,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         }
 
         pr_info("RA: ra_set_value: exit id=0x%x ret=%d\n", id, ret);
-    out:
-        ra_log_pop(log);
         return ret;
     }
 
@@ -1315,20 +1238,17 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         struct cmucal_clk *clk;
         unsigned int type = GET_TYPE(id);
         unsigned int val = 0;
-        struct ra_log_ctx log;
-
-        clk = cmucal_get_node(id);
-        log = ra_log_push_clk(clk, id);
 
         pr_info("RA: ra_get_value: enter id=0x%x type=0x%x\n", id, type);
 
+        clk = cmucal_get_node(id);
         pr_info("RA: ra_get_value: cmucal_get_node(id=0x%x) -> clk=%p\n", id,
                 clk);
 
         if (!clk) {
             pr_err("RA: ra_get_value: ERROR clk NULL id=0x%x type=0x%x\n", id,
                    type);
-            goto out;
+            return 0;
         }
 
         pr_info("RA: ra_get_value: clk name=%s id=0x%x type=0x%x\n", clk->name,
@@ -1382,8 +1302,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
 
         pr_info("RA: ra_get_value: exit id=0x%x type=0x%x val=0x%x\n", id, type,
                 val);
-    out:
-        ra_log_pop(log);
         return val;
     }
 
@@ -1714,13 +1632,14 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
     }
     EXPORT_SYMBOL_GPL(ra_set_clk_by_seq);
 
+#include <linux/errno.h>
+#include <linux/printk.h>
+
     int ra_compare_clk_list(unsigned int *params, unsigned int *list,
                             unsigned int num_list) {
         struct cmucal_clk *clk;
         unsigned int i, type;
         unsigned int expected, actual;
-        bool has_g3d = ra_list_has_g3d(list, num_list);
-        struct ra_log_ctx log = ra_log_push(has_g3d ? 10 : 0, NULL);
 
         pr_info(
             "RA: ra_compare_clk_list: enter params=%p list=%p num_list=%u\n",
@@ -1730,7 +1649,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             pr_err(
                 "RA: ra_compare_clk_list: ERROR NULL input params=%p list=%p\n",
                 params, list);
-            ra_log_pop(log);
             return -EVCLKINVAL;
         }
 
@@ -1749,7 +1667,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
                 pr_err("RA: ra_compare_clk_list: ERROR clk NULL idx=%u id=0x%x "
                        "type=0x%x\n",
                        i, list[i], type);
-                ra_log_pop(log);
                 return -EVCLKINVAL;
             }
 
@@ -1784,7 +1701,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
                 pr_err("RA: ra_compare_clk_list: ERROR unsupported clk type "
                        "idx=%u id=0x%x type=0x%x\n",
                        i, list[i], type);
-                ra_log_pop(log);
                 return -EVCLKINVAL;
             }
 
@@ -1801,7 +1717,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         }
 
         pr_info("RA: ra_compare_clk_list: exit OK\n");
-        ra_log_pop(log);
         return 0;
 
     mismatch:
@@ -1815,7 +1730,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             "expected=0x%x type_specific_actual=0x%x ra_get_value=0x%x\n",
             i, clk->name, list[i], expected, actual, ra_get_value(list[i]));
 
-        ra_log_pop(log);
         return -EVCLKNOENT;
     }
     EXPORT_SYMBOL_GPL(ra_compare_clk_list);
@@ -1902,14 +1816,10 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
     int ra_set_rate(unsigned int id, unsigned int rate) {
         struct cmucal_clk *clk;
         int ret = 0;
-        struct ra_log_ctx log;
 
         clk = cmucal_get_node(id);
-        log = ra_log_push_clk(clk, id);
-        if (!clk) {
-            ra_log_pop(log);
+        if (!clk)
             return -EVCLKINVAL;
-        }
 
         switch (GET_TYPE(clk->id)) {
         case PLL_TYPE:
@@ -1927,8 +1837,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             break;
         }
 
-        ra_log_pop(log);
-
         return ret;
     }
     EXPORT_SYMBOL_GPL(ra_set_rate);
@@ -1939,10 +1847,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         unsigned int clk_path[RECALC_MAX];
         unsigned int depth, ratio;
         unsigned long rate;
-        struct ra_log_ctx log;
-
-        clk = cmucal_get_node(id);
-        log = ra_log_push_clk(clk, id);
 
         pr_info("RA: ra_recalc_rate: enter id=0x%x type=0x%x\n", id,
                 GET_TYPE(id));
@@ -1951,8 +1855,7 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             pr_info("RA: ra_recalc_rate: id=0x%x type=0x%x > GATE_TYPE -> "
                     "return 0\n",
                     id, GET_TYPE(id));
-            rate = 0;
-            goto out;
+            return 0;
         }
 
         cur = id;
@@ -1983,8 +1886,7 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             pr_err(
                 "RA: ra_recalc_rate: ERROR overflow id=0x%x (RECALC_MAX=%d)\n",
                 id, RECALC_MAX);
-            rate = 0;
-            goto out;
+            return 0;
         }
 
         /* Dump the path we collected */
@@ -2019,7 +1921,7 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
 
         if (!rate) {
             pr_info("RA: ra_recalc_rate: initial rate is 0 -> return 0\n");
-            goto out;
+            return 0;
         }
 
         /* calc request clock node rate */
@@ -2046,8 +1948,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         }
 
         pr_info("RA: ra_recalc_rate: exit id=0x%x -> rate=%lu\n", id, rate);
-    out:
-        ra_log_pop(log);
         return rate;
     }
     EXPORT_SYMBOL_GPL(ra_recalc_rate);
@@ -2073,18 +1973,11 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             if (!clk)
                 continue;
 
-            /* Only allow verbose logging when this PLL belongs to G3D */
-            {
-                struct ra_log_ctx log = ra_log_push_clk(clk, clk->id);
-
             ra_get_pll_address(clk);
 
             ra_get_pll_rate_table(clk);
 
             pll_get_locktime(to_pll_clk(clk));
-
-                ra_log_pop(log);
-            }
         }
 
         size = cmucal_get_list_size(MUX_TYPE);

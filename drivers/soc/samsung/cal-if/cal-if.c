@@ -153,7 +153,6 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
     int ret;
     struct vclk *vclk;
     size_t override_idx;
-    bool log_gpu = cal_is_gpu_dvfs_id(id);
 
     if (!table) {
         cal_err("id=0x%x table=NULL\n", id);
@@ -161,9 +160,8 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
     }
 
     ret = vclk_get_rate_table(id, table);
-    if (log_gpu)
-        cal_info("id=0x%x base_ret=%d gpu=%d has_ovr=%d\n",
-                 id, ret, cal_is_gpu_dvfs_id(id), gpu_dvfs_has_overrides());
+    cal_info("id=0x%x base_ret=%d gpu=%d has_ovr=%d\n",
+             id, ret, cal_is_gpu_dvfs_id(id), gpu_dvfs_has_overrides());
 
     if (!cal_is_gpu_dvfs_id(id) || ret <= 0 || !gpu_dvfs_has_overrides())
         return ret;
@@ -174,16 +172,14 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
         return ret;
     }
 
-    if (log_gpu)
-        cal_info("id=0x%x vclk=%s num_rates=%u\n", id, vclk->name, vclk->num_rates);
+    cal_info("id=0x%x vclk=%s num_rates=%u\n", id, vclk->name, vclk->num_rates);
 
     if (ret > vclk->num_rates) {
         cal_warn("id=0x%x ret(%d) > num_rates(%u) clamp\n", id, ret, vclk->num_rates);
         ret = vclk->num_rates;
     }
 
-    if (log_gpu)
-        cal_info("id=0x%x override_count=%zu\n", id, gpu_dvfs_override_count());
+    cal_info("id=0x%x override_count=%zu\n", id, gpu_dvfs_override_count());
 
     for (override_idx = 0; override_idx < gpu_dvfs_override_count(); override_idx++) {
         const struct gpu_dvfs_override_entry *entry;
@@ -464,16 +460,14 @@ int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 	struct vclk *vclk;
 	size_t override_count = 0;
 	size_t override_idx;
-    bool log_gpu = cal_is_gpu_dvfs_id(id);
 	struct gpu_override_plan {
 		const struct gpu_dvfs_override_entry *entry;
 		int index;
 	} *plans = NULL;
 
 	entries = fvmap_get_voltage_table(id, table);
-    if (log_gpu)
-        cal_info("id=0x%x base_entries=%d gpu=%d has_ovr=%d\n",
-                 id, entries, cal_is_gpu_dvfs_id(id), gpu_dvfs_has_overrides());
+    cal_info("id=0x%x base_entries=%d gpu=%d has_ovr=%d\n",
+             id, entries, cal_is_gpu_dvfs_id(id), gpu_dvfs_has_overrides());
 
 	if (!cal_is_gpu_dvfs_id(id) || entries <= 0 || !gpu_dvfs_has_overrides())
 		return entries;
@@ -488,9 +482,8 @@ int cal_dfs_get_asv_table(unsigned int id, unsigned int *table)
 	override_count = gpu_dvfs_override_count();
 	plans = kcalloc(override_count, sizeof(*plans), GFP_KERNEL);
     
-    if (log_gpu)
-        cal_info("id=0x%x vclk=%s num_rates=%u override_count=%zu\n",
-                 id, vclk->name, vclk->num_rates, override_count);
+    cal_info("id=0x%x vclk=%s num_rates=%u override_count=%zu\n",
+             id, vclk->name, vclk->num_rates, override_count);
 	if (!plans)
 		return entries;
 
@@ -576,12 +569,10 @@ int cal_dfs_get_rate_asv_table(unsigned int id, struct dvfs_rate_volt *table)
     int num_of_entry;
     int asv_entries;
     int idx;
-    bool log_gpu = cal_is_gpu_dvfs_id(id);
 
     num_of_entry = cal_dfs_get_rate_table(id, rate);
     if (num_of_entry <= 0) {
-        if (log_gpu)
-            cal_info("id=0x%x no rates (%d)\n", id, num_of_entry);
+        cal_info("id=0x%x no rates (%d)\n", id, num_of_entry);
         return 0;
     }
 
@@ -598,8 +589,7 @@ int cal_dfs_get_rate_asv_table(unsigned int id, struct dvfs_rate_volt *table)
         return 0;
     }
 
-    if (log_gpu)
-        cal_info("id=0x%x exporting %d entries\n", id, num_of_entry);
+    cal_info("id=0x%x exporting %d entries\n", id, num_of_entry);
 
     for (idx = 0; idx < num_of_entry; idx++) {
         table[idx].rate = rate[idx];

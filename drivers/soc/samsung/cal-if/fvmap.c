@@ -2,10 +2,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/kobject.h>
-#include <linux/percpu.h>
-#include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/string.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <soc/samsung/cal-if.h>
@@ -22,54 +19,6 @@
 #include <linux/io.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
-
-static DEFINE_PER_CPU(bool, fvmap_log_enabled);
-
-struct fvmap_log_ctx {
-    bool prev_enabled;
-};
-
-static bool fvmap_is_g3d_name(const char *name) {
-    if (!name)
-        return false;
-
-    return strstr(name, "g3d") || strstr(name, "G3D");
-}
-
-static bool fvmap_should_log(unsigned int id, const char *name) {
-    return id == 10 || GET_IDX(id) == 10 || fvmap_is_g3d_name(name);
-}
-
-static struct fvmap_log_ctx fvmap_log_push(unsigned int id,
-                                           const char *name) {
-    struct fvmap_log_ctx ctx;
-
-    migrate_disable();
-    ctx.prev_enabled = this_cpu_read(fvmap_log_enabled);
-    this_cpu_write(fvmap_log_enabled, fvmap_should_log(id, name));
-
-    return ctx;
-}
-
-static void fvmap_log_pop(struct fvmap_log_ctx ctx) {
-    this_cpu_write(fvmap_log_enabled, ctx.prev_enabled);
-    migrate_enable();
-}
-
-static bool fvmap_log_current(void) {
-    return this_cpu_read(fvmap_log_enabled);
-}
-
-static inline struct fvmap_log_ctx fvmap_log_push_vclk(struct vclk *vclk) {
-    return fvmap_log_push(vclk ? vclk->id : 0, vclk ? vclk->name : NULL);
-}
-
-#undef pr_info
-#define pr_info(fmt, ...)                                                    \
-    do {                                                                     \
-        if (fvmap_log_current())                                             \
-            printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);                    \
-    } while (0)
 
 #define FVMAP_DUMP_MAX_LV 2048
 #define FVMAP_DUMP_MAX_MEM 2048
@@ -565,27 +514,16 @@ int fvmap_set_raw_voltage_table(unsigned int id, int delta_uV) {
 int fvmap_get_voltage_table(unsigned int id, unsigned int *table) {
     struct fvmap_header *hdr;
     struct rate_volt_header *rv;
-    struct vclk *vclk;
-    struct fvmap_log_ctx log;
     int idx, i, num_lv;
 
-    vclk = cmucal_get_node(id);
-    log = fvmap_log_push(id, vclk ? vclk->name : NULL);
-
-    if (!IS_ACPM_VCLK(id)) {
-        fvmap_log_pop(log);
+    if (!IS_ACPM_VCLK(id))
         return -EINVAL;
-    }
 
-    if (!table) {
-        fvmap_log_pop(log);
+    if (!table)
         return -EINVAL;
-    }
 
-    if (!fvmap_base) {
-        fvmap_log_pop(log);
+    if (!fvmap_base)
         return -ENODEV;
-    }
 
     idx = GET_IDX(id);
     hdr = (struct fvmap_header *)fvmap_base;
@@ -597,7 +535,6 @@ int fvmap_get_voltage_table(unsigned int id, unsigned int *table) {
     if (num_lv <= 0) {
         pr_err("%s: id=%u idx=%d invalid num_of_lv=%d\n", __func__, id, idx,
                num_lv);
-        fvmap_log_pop(log);
         return -EINVAL;
     }
 
@@ -610,7 +547,6 @@ int fvmap_get_voltage_table(unsigned int id, unsigned int *table) {
         pr_info("%s: lv=%d rate=%u volt_uV=%u\n", __func__, i,
                 rv->table[i].rate, table[i]);
 
-    fvmap_log_pop(log);
     return num_lv;
 }
 
@@ -798,9 +734,8 @@ static void fvmap_dump_header_entry_io(const char *tag, int idx,
     fvmap_dump_header_entry(tag, idx, &tmp);
 
     /* Optional: raw bytes */
-    if (fvmap_log_current())
-        print_hex_dump(KERN_INFO, "FVMAP_HDR_BYTES: ", DUMP_PREFIX_OFFSET, 16,
-                       4, &tmp, sizeof(tmp), false);
+    print_hex_dump(KERN_INFO, "FVMAP_HDR_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
+                   &tmp, sizeof(tmp), false);
 }
 
 static void fvmap_dump_ratevolt_io(const char *tag, int idx, void __iomem *base,
@@ -829,9 +764,8 @@ static void fvmap_dump_ratevolt_io(const char *tag, int idx, void __iomem *base,
                 tmp->table[j].rate, tmp->table[j].volt);
 
     /* Optional: raw bytes of the copied blob */
-    if (fvmap_log_current())
-        print_hex_dump(KERN_INFO, "FVMAP_RV_BYTES: ", DUMP_PREFIX_OFFSET, 16,
-                       4, tmp, bytes, false);
+    print_hex_dump(KERN_INFO, "FVMAP_RV_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
+                   tmp, bytes, false);
 
     kfree(tmp);
 }
@@ -925,9 +859,8 @@ static void fvmap_dump_params_io(const char *tag, int idx, void __iomem *base,
         }
     }
 
-    if (fvmap_log_current())
-        print_hex_dump(KERN_INFO, "FVMAP_TBL_BYTES: ", DUMP_PREFIX_OFFSET, 16,
-                       4, tmp, bytes, false);
+    print_hex_dump(KERN_INFO, "FVMAP_TBL_BYTES: ", DUMP_PREFIX_OFFSET, 16, 4,
+                   tmp, bytes, false);
 
     kfree(tmp);
 }
@@ -956,13 +889,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
     pr_info("%s: total size=%d\n", __func__, size);
 
     for (i = 0; i < size; i++) {
-        unsigned int vclk_id = ACPM_VCLK_TYPE | i;
-        struct fvmap_log_ctx log;
-
-        vclk = cmucal_get_node(vclk_id);
-        log = fvmap_log_push(vclk_id, vclk ? vclk->name : NULL);
-        old_lv = fvmap_header[i].num_of_lv;
-
         /* load fvmap info */
         fvmap_header[i].dvfs_type = header[i].dvfs_type;
         fvmap_header[i].num_of_lv = header[i].num_of_lv;
@@ -1014,10 +940,9 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                 fvmap_header[i].dvfs_type, fvmap_header[i].num_of_lv,
                 fvmap_header[i].num_of_members);
 
-        if (vclk == NULL) {
-            fvmap_log_pop(log);
+        vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
+        if (vclk == NULL)
             continue;
-        }
 
         // expand listed size
         is_g3d = !strcmp(vclk->name, "dvfs_g3d");
@@ -1111,7 +1036,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                                    new_param, vclk, old_lv);
             if (ret)
                 pr_err("G3D: manual override failed: %d\n", ret);
-            fvmap_log_pop(log);
             continue;
         }
 
@@ -1137,8 +1061,6 @@ static void fvmap_copy_from_sram(void __iomem *map_base,
                 }
             }
         }
-
-        fvmap_log_pop(log);
     }
 }
 
