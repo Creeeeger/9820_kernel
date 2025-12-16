@@ -2875,6 +2875,65 @@ static int ect_override_g3d_pll_table(void) {
     return 0;
 }
 
+static int ect_override_minmax_dvfs_g3d_maxfreq(u32 new_max_khz)
+{
+    void *gen_blk;
+    struct ect_gen_param_table *minmax;
+    u32 *oldp, *newp;
+    int rows, cols, i;
+
+    /* Keep allocated override alive */
+    static u32 *override_minmax;
+    static size_t override_minmax_bytes;
+
+    gen_blk = ect_get_block(BLOCK_GEN_PARAM); /* or "GEN" if that's what your blob uses */
+    if (!gen_blk) {
+        pr_warn("[ECT] minmax override: GEN_PARAM block missing\n");
+        return -ENODEV;
+    }
+
+    minmax = ect_gen_param_get_table(gen_blk, "MINMAX_dvfs_g3d");
+    if (!minmax || !minmax->parameter) {
+        pr_warn("[ECT] minmax override: table MINMAX_dvfs_g3d missing\n");
+        return -ENODEV;
+    }
+
+    rows = minmax->num_of_row;
+    cols = minmax->num_of_col;
+
+    if (rows <= 0 || rows > 1024 || cols <= MINMAX_MAX_FREQ || cols > 64) {
+        pr_err("[ECT] minmax override: suspicious shape rows=%d cols=%d\n", rows, cols);
+        return -EINVAL;
+    }
+
+    oldp = (u32 *)minmax->parameter;
+
+    /* clone current table */
+    override_minmax_bytes = (size_t)rows * (size_t)cols * sizeof(u32);
+    newp = kmemdup(oldp, override_minmax_bytes, GFP_KERNEL);
+    if (!newp)
+        return -ENOMEM;
+
+    /* replace previous override buffer */
+    kfree(override_minmax);
+    override_minmax = newp;
+
+    /* Force MAX freq column for every row */
+    for (i = 0; i < rows; i++) {
+        u32 *rowp = &override_minmax[i * cols];
+        pr_info("[ECT] minmax override: row=%d ver=%u old_max=%u -> new_max=%u (kHz)\n",
+                i, rowp[0], rowp[MINMAX_MAX_FREQ], new_max_khz);
+        rowp[MINMAX_MAX_FREQ] = new_max_khz;
+    }
+
+    minmax->parameter = override_minmax;
+
+    pr_info("[ECT] minmax override: MINMAX_dvfs_g3d forced MAX=%u kHz (rows=%d cols=%d)\n",
+            new_max_khz, rows, cols);
+
+    return 0;
+}
+
 static void ect_print_dvfs_block(struct ect_dvfs_header *h) {
     int i, j, k;
 
@@ -3077,6 +3136,7 @@ int ect_parse_binary_header(void) {
 
     ect_override_g3d_tables();
     ect_override_g3d_pll_table();
+    ect_override_minmax_dvfs_g3d_maxfreq(910);
 
     ect_header_info.block_handle = ect_header;
 
