@@ -916,6 +916,93 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         return (unsigned int)-1;
     }
 
+    void ra_dump_pll_debug(struct cmucal_clk *clk)
+    {
+        struct cmucal_pll *pll;
+        unsigned int pll_con0 = 0, pll_con1 = 0;
+        unsigned int mdiv = 0, pdiv = 0, sdiv = 0, kdiv = 0;
+        int i;
+
+        pr_info("RA: ra_dump_pll_debug: enter clk=%p\n", clk);
+
+        if (!clk) {
+            pr_info("RA: ra_dump_pll_debug: clk NULL -> return\n");
+            return;
+        }
+
+        if (GET_TYPE(clk->id) != PLL_TYPE) {
+            pr_info("RA: ra_dump_pll_debug: unsupported type id=0x%x type=0x%x\n",
+                    clk->id, GET_TYPE(clk->id));
+            return;
+        }
+
+        pll = to_pll_clk(clk);
+        pr_info("RA: ra_dump_pll_debug: clk name=%s pid=%u pll=%p rate_table=%p "
+                "rate_count=%d\n",
+                clk->name, clk->pid, pll, pll ? pll->rate_table : NULL,
+                pll ? pll->rate_count : -1);
+
+        pr_info("RA: ra_dump_pll_debug: idx(offset/enable/status)=%u/%u/%u "
+                "m/p/s/k idx=%u/%u/%u/%u\n",
+                clk->offset_idx, clk->enable_idx, clk->status_idx,
+                pll ? pll->m_idx : 0, pll ? pll->p_idx : 0,
+                pll ? pll->s_idx : 0, pll ? pll->k_idx : 0);
+
+        pr_info("RA: ra_dump_pll_debug: addr lock=%p pll_con0=%p pll_con1=%p "
+                "shift width (lock=%u/%u status=%u/%u enable=%u/%u m=%u/%u p=%u/%u "
+                "s=%u/%u k=%u/%u)\n",
+                clk->lock, clk->pll_con0, clk->pll_con1, clk->shift, clk->width,
+                clk->s_shift, clk->s_width, clk->e_shift, clk->e_width,
+                pll ? pll->m_shift : 0, pll ? pll->m_width : 0,
+                pll ? pll->p_shift : 0, pll ? pll->p_width : 0,
+                pll ? pll->s_shift : 0, pll ? pll->s_width : 0,
+                pll ? pll->k_shift : 0, pll ? pll->k_width : 0);
+
+        if (clk->lock)
+            pr_info("RA: ra_dump_pll_debug: lock@%p = 0x%08x\n",
+                    clk->lock, readl(clk->lock));
+
+        if (clk->enable)
+            pr_info("RA: ra_dump_pll_debug: enable@%p = 0x%08x\n",
+                    clk->enable, readl(clk->enable));
+
+        if (clk->status)
+            pr_info("RA: ra_dump_pll_debug: status@%p = 0x%08x\n",
+                    clk->status, readl(clk->status));
+
+        if (clk->pll_con0) {
+            pll_con0 = readl(clk->pll_con0);
+            if (pll) {
+                mdiv = (pll_con0 >> pll->m_shift) & width_to_mask(pll->m_width);
+                pdiv = (pll_con0 >> pll->p_shift) & width_to_mask(pll->p_width);
+                sdiv = (pll_con0 >> pll->s_shift) & width_to_mask(pll->s_width);
+            }
+
+            pr_info("RA: ra_dump_pll_debug: pll_con0@%p = 0x%08x -> m/p/s=%u/%u/%u\n",
+                    clk->pll_con0, pll_con0, mdiv, pdiv, sdiv);
+        }
+
+        if (pll && clk->pll_con1) {
+            pll_con1 = readl(clk->pll_con1);
+            kdiv = (pll_con1 >> pll->k_shift) & width_to_mask(pll->k_width);
+
+            pr_info("RA: ra_dump_pll_debug: pll_con1@%p = 0x%08x -> k=%u\n",
+                    clk->pll_con1, pll_con1, kdiv);
+        }
+
+        if (pll && pll->rate_table && pll->rate_count > 0) {
+            for (i = 0; i < pll->rate_count; i++)
+                pr_info("RA: ra_dump_pll_debug: rate_table[%d]=%p rate=%lu "
+                        "m/p/s/k=%u/%u/%u/%d\n",
+                        i, &pll->rate_table[i], pll->rate_table[i].rate,
+                        pll->rate_table[i].mdiv, pll->rate_table[i].pdiv,
+                        pll->rate_table[i].sdiv, pll->rate_table[i].kdiv);
+        }
+
+        pr_info("RA: ra_dump_pll_debug: exit name=%s\n", clk->name);
+    }
+    EXPORT_SYMBOL_GPL(ra_dump_pll_debug);
+
     static int ra_set_gate(struct cmucal_clk * clk, unsigned int pass) {
         unsigned int reg;
 
@@ -2125,6 +2212,8 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             else
                 clk->enable = NULL;
         }
+        
+        ra_dump_pll_debug(clk);
 
         return 0;
     }

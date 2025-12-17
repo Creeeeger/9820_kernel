@@ -105,6 +105,7 @@ extern int ra_set_enable(unsigned int id, unsigned int params);
 extern int ra_set_qch(unsigned int id, unsigned int en,
 		unsigned int req, unsigned int expire);
 extern int ra_set_enable_hwacg(struct cmucal_clk *clk, unsigned int en);
+extern void ra_dump_pll_debug(struct cmucal_clk *clk);
 
 extern int ra_init(void);
 
