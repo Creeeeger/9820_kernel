@@ -856,8 +856,6 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         int i;
 
         if (!clk) {
-            pr_info("CMUCAL: ra_get_pll_idx: ERROR clk is NULL -> return "
-                    "(unsigned)-1\n");
             return (unsigned int)-1;
         }
 
@@ -1746,6 +1744,8 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
                     list[i], type);
 
             clk = cmucal_get_node(list[i]);
+            ra_dump_pll_debug(clk);
+
             pr_info("RA: ra_compare_clk_list: idx=%u cmucal_get_node(id=0x%x) "
                     "-> clk=%p\n",
                     i, list[i], clk);
