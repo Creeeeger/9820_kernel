@@ -3,9 +3,6 @@
 #
 
 obj-$(CONFIG_EXYNOS_CORESIGHT) 		+= exynos-coresight.o
-ifeq ($(CONFIG_SOC_EXYNOS9810),y)
-obj-$(CONFIG_EXYNOS_ITMON) 		+= exynos9810-itmon.o
-endif
 ifeq ($(CONFIG_SOC_EXYNOS9820),y)
 obj-$(CONFIG_EXYNOS_ITMON) 		+= exynos9820-itmon.o
 endif
