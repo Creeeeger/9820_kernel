@@ -6,5 +6,4 @@ obj-$(CONFIG_CP_PMUCAL)			+= pmucal_cp.o
 obj-$(CONFIG_CMUCAL)			+= cmucal.o ra.o vclk.o pll_spec.o
 obj-$(CONFIG_ACPM_DVFS)			+= acpm_dvfs.o fvmap.o
 obj-$(CONFIG_CMU_EWF)			+= cmu_ewf.o
-
 obj-$(CONFIG_SOC_EXYNOS9820)    += exynos9820/cal_data.o
