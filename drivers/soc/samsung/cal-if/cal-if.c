@@ -91,21 +91,40 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 {
 	struct vclk *vclk;
 	int ret;
+	bool use_hiu = false;
 
+	cal_info("enter id=0x%x rate=%lu is_acpm=%d\n",
+		 id, rate, IS_ACPM_VCLK(id));
 	if (IS_ACPM_VCLK(id)) {
-		if (cal_check_hiu_dvfs_id && cal_check_hiu_dvfs_id(id))
+		use_hiu = cal_check_hiu_dvfs_id && cal_check_hiu_dvfs_id(id);
+		cal_info("acpm path: idx=%u use_hiu=%d\n", GET_IDX(id), use_hiu);
+		if (use_hiu) {
 			ret = exynos_hiu_set_freq(id, rate);
-		else
+			cal_info("acpm/hiu set ret=%d\n", ret);
+		} else {
 			ret = exynos_acpm_set_rate(GET_IDX(id), rate);
+			cal_info("acpm set ret=%d\n", ret);
+			if (!ret) {
+				unsigned long cur_rate =
+					exynos_acpm_get_rate(GET_IDX(id));
+				cal_info("acpm readback idx=%u want=%lu got=%lu\n",
+					 GET_IDX(id), rate, cur_rate);
+			}
+		}
 		if (!ret) {
 			vclk = cmucal_get_node(id);
-			if (vclk)
+			if (vclk) {
 				vclk->vrate = (unsigned int)rate;
+				cal_info("acpm update vclk->vrate=%u\n",
+					 vclk->vrate);
+			}
 		}
 	} else {
+		cal_info("vclk path: id=0x%x rate=%lu\n", id, rate);
 		ret = vclk_set_rate(id, rate);
 	}
 
+	cal_info("exit id=0x%x rate=%lu ret=%d\n", id, rate, ret);
 	return ret;
 }
 

@@ -1682,18 +1682,38 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         int i;
         bool trans;
 
+        pr_info("RA: ra_set_clk_by_type: list=%p lut=%p num_list=%u type=0x%x "
+                "opt=%d\n",
+                list, lut, num_list, type, opt);
+
         for (i = 0; i < num_list; i++) {
             if (GET_TYPE(list[i]) != type)
                 continue;
 
+            pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x type=0x%x\n",
+                    i, list[i], type);
             to = lut->params[i];
             from = ra_get_value(list[i]);
             trans = ra_get_trans_opt(to, from);
-            if (trans == TRANS_IGNORE)
+            pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x from=0x%x to=0x%x "
+                    "trans=%d opt=%d\n",
+                    i, list[i], from, to, trans, opt);
+            if (trans == TRANS_IGNORE) {
+                pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x skip "
+                        "TRANS_IGNORE\n",
+                        i, list[i]);
                 continue;
-            if (opt != TRANS_FORCE && trans != opt)
+            }
+            if (opt != TRANS_FORCE && trans != opt) {
+                pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x skip "
+                        "trans!=opt (trans=%d opt=%d)\n",
+                        i, list[i], trans, opt);
                 continue;
+            }
 
+            pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x apply "
+                    "ra_set_value(to=0x%x)\n",
+                    i, list[i], to);
             ra_set_value(list[i], to);
         }
     }
@@ -1904,18 +1924,28 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
         struct cmucal_clk *clk;
         int ret = 0;
 
+        pr_info("RA: ra_set_rate: enter id=0x%x rate=%u\n", id, rate);
         clk = cmucal_get_node(id);
-        if (!clk)
+        if (!clk) {
+            pr_info("RA: ra_set_rate: ERROR clk NULL id=0x%x\n", id);
             return -EVCLKINVAL;
+        }
 
+        pr_info("RA: ra_set_rate: clk=%p name=%s type=0x%x\n",
+                clk, clk->name ? clk->name : "(null)", GET_TYPE(clk->id));
         switch (GET_TYPE(clk->id)) {
         case PLL_TYPE:
+            pr_info("RA: ra_set_rate: PLL_TYPE -> ra_set_pll(rate=%u)\n", rate);
             ret = ra_set_pll(clk, rate / 1000, rate);
             break;
         case DIV_TYPE:
+            pr_info("RA: ra_set_rate: DIV_TYPE -> ra_set_div_rate(rate=%u)\n",
+                    rate);
             ret = ra_set_div_rate(clk, rate);
             break;
         case MUX_TYPE:
+            pr_info("RA: ra_set_rate: MUX_TYPE -> ra_set_mux_rate(rate=%u)\n",
+                    rate);
             ret = ra_set_mux_rate(clk, rate);
             break;
         default:
@@ -1924,6 +1954,8 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
             break;
         }
 
+        pr_info("RA: ra_set_rate: exit id=0x%x rate=%u ret=%d\n", id, rate,
+                ret);
         return ret;
     }
     EXPORT_SYMBOL_GPL(ra_set_rate);

@@ -52,6 +52,8 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 	unsigned long long before, after, latency;
 	int ret;
 
+	ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: enter id=%u rate=%lu ch=%u size=%u\n",
+		  __func__, id, rate, acpm_dvfs.ch_num, acpm_dvfs.size);
 	config.cmd = cmd;
 	config.response = true;
 	config.indirection = false;
@@ -67,14 +69,17 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 	after = sched_clock();
 	latency = after - before;
     
-    dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
+	dump_ipc_config(__func__, "after", &config, acpm_dvfs.size);
 
-    if (ret)
-        ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ret=%d\n",
-             __func__, id, rate, latency, ret);
-    else
-        ACPM_DBG(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ok\n",
-             __func__, id, rate, latency);
+	ACPM_INFO(ACPM_DVFS_LOG_PREFIX "%s: post cmd[0]=%u cmd[1]=%u cmd[2]=%u cmd[3]=%u\n",
+		  __func__, config.cmd[0], config.cmd[1], config.cmd[2], config.cmd[3]);
+
+	if (ret)
+		ACPM_ERR(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ret=%d\n",
+			 __func__, id, rate, latency, ret);
+	else
+		ACPM_DBG(ACPM_DVFS_LOG_PREFIX "%s: id=%u rate=%lu latency=%llu ok\n",
+			 __func__, id, rate, latency);
     
 	if (ret)
 		pr_err("%s:[%d] latency = %llu ret = %d",

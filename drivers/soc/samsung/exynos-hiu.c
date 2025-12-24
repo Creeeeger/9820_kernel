@@ -313,6 +313,7 @@ int exynos_hiu_set_freq(unsigned int id, unsigned int req_freq)
 {
 	bool cpd_blocked_changed = false;
 
+	pr_info("exynos-hiu: set_freq enter id=0x%x req_freq=%u\n", id, req_freq);
 	if (unlikely(!data))
 		return -ENODEV;
 
@@ -368,7 +369,8 @@ int exynos_hiu_set_freq(unsigned int id, unsigned int req_freq)
 
 	data->cur_freq = req_freq;
 
-	pr_info("exynos-hiu: set REQDVFS to HIU : %ukHz\n", req_freq);
+	pr_info("exynos-hiu: set REQDVFS to HIU : %ukHz cur_freq=%u mode=%u\n",
+		req_freq, data->cur_freq, data->operation_mode);
 
 	return 0;
 
@@ -384,6 +386,7 @@ fail_request_on_sr0:
 
 	dbg_snapshot_printk("HIU_request_on_sr0_fail:%ukHz\n", req_freq);
 
+	pr_info("exynos-hiu: set_freq fail id=0x%x req_freq=%u\n", id, req_freq);
 	return -EIO;
 }
 

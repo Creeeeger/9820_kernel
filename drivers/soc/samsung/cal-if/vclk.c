@@ -182,10 +182,19 @@ static int transition(struct vclk *vclk, struct vclk_lut *lut) {
     unsigned int *list = vclk->list;
     unsigned int num_list = vclk->num_list;
 
+    pr_info("VCLK: transition: vclk=%p name=%s rate=%u num_list=%u\n",
+            vclk, vclk && vclk->name ? vclk->name : "(null)",
+            lut ? lut->rate : 0, num_list);
+
+    pr_info("VCLK: transition: DIV_TYPE TRANS_HIGH\n");
     ra_set_clk_by_type(list, lut, num_list, DIV_TYPE, TRANS_HIGH);
+    pr_info("VCLK: transition: PLL_TYPE TRANS_LOW\n");
     ra_set_clk_by_type(list, lut, num_list, PLL_TYPE, TRANS_LOW);
+    pr_info("VCLK: transition: MUX_TYPE TRANS_FORCE\n");
     ra_set_clk_by_type(list, lut, num_list, MUX_TYPE, TRANS_FORCE);
+    pr_info("VCLK: transition: PLL_TYPE TRANS_HIGH\n");
     ra_set_clk_by_type(list, lut, num_list, PLL_TYPE, TRANS_HIGH);
+    pr_info("VCLK: transition: DIV_TYPE TRANS_LOW\n");
     ra_set_clk_by_type(list, lut, num_list, DIV_TYPE, TRANS_LOW);
 
     return 0;
@@ -212,6 +221,8 @@ static int __vclk_set_rate(unsigned int id, unsigned int rate, int cmd) {
     struct vclk *vclk;
     struct vclk_lut *new_lut, *switch_lut;
     unsigned int switch_rate, max_rate;
+    unsigned int list_idx;
+    struct cmucal_clk *list_clk;
 
     pr_info("VCLK: __vclk_set_rate: enter id=%u rate=%u cmd=0x%x IS_VCLK=%d "
             "DFS=%d COMMON=%d\n",
@@ -239,6 +250,17 @@ static int __vclk_set_rate(unsigned int id, unsigned int rate, int cmd) {
     if (!vclk->lut) {
         pr_info("VCLK: ERROR: vclk->lut is NULL (id=%u) -> -EVCLKINVAL\n", id);
         return -EVCLKINVAL;
+    }
+
+    if (vclk->name && !strcmp(vclk->name, "dvfs_g3d")) {
+        pr_info("VCLK: dvfs_g3d list dump: num_list=%u\n", vclk->num_list);
+        for (list_idx = 0; list_idx < vclk->num_list; list_idx++) {
+            list_clk = cmucal_get_node(vclk->list[list_idx]);
+            pr_info("VCLK: dvfs_g3d list[%u]=0x%x type=0x%x name=%s\n",
+                    list_idx, vclk->list[list_idx],
+                    GET_TYPE(vclk->list[list_idx]),
+                    (list_clk && list_clk->name) ? list_clk->name : "(null)");
+        }
     }
 
     /* Determine LUT lookup rate unit */
