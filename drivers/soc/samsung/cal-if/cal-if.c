@@ -92,10 +92,17 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 	struct vclk *vclk;
 	int ret;
 	bool use_hiu = false;
+	bool force_vclk = false;
 
-	cal_info("enter id=0x%x rate=%lu is_acpm=%d\n",
-		 id, rate, IS_ACPM_VCLK(id));
-	if (IS_ACPM_VCLK(id)) {
+	cal_info("enter id=0x%x rate=%lu is_acpm=%d\n", id, rate, IS_ACPM_VCLK(id));
+    
+	force_vclk = IS_ACPM_VCLK(id) && cal_is_gpu_dvfs_id(id);
+    
+    if (force_vclk) {
+        cal_info("force vclk path for gpu dvfs id=0x%x\n", id);
+    }
+
+	if (IS_ACPM_VCLK(id) && !force_vclk) {
 		use_hiu = cal_check_hiu_dvfs_id && cal_check_hiu_dvfs_id(id);
 		cal_info("acpm path: idx=%u use_hiu=%d\n", GET_IDX(id), use_hiu);
 		if (use_hiu) {
