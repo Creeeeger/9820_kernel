@@ -1694,6 +1694,49 @@ static int ra_set_mux_rate(struct cmucal_clk * clk, unsigned int rate) {
                     i, list[i], type);
             to = lut->params[i];
             from = ra_get_value(list[i]);
+
+            if (type == PLL_TYPE) {
+                struct cmucal_clk *clk = cmucal_get_node(list[i]);
+                unsigned int to_khz = to;
+                unsigned int from_khz = from / 1000;
+
+                if (clk) {
+                    struct cmucal_pll *pll = to_pll_clk(clk);
+
+                    if (lut && lut->rate && pll && pll->rate_table &&
+                        to < pll->rate_count) {
+                        to_khz = pll->rate_table[to].rate / 1000;
+                        pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x pll "
+                                "param idx=%u -> rate_khz=%u\n",
+                                i, list[i], to, to_khz);
+                    }
+                }
+
+                trans = ra_get_trans_opt(to_khz, from_khz);
+                pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x from_khz=%u "
+                        "to_khz=%u trans=%d opt=%d\n",
+                        i, list[i], from_khz, to_khz, trans, opt);
+
+                if (trans == TRANS_IGNORE) {
+                    pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x skip "
+                            "TRANS_IGNORE\n",
+                            i, list[i]);
+                    continue;
+                }
+                if (opt != TRANS_FORCE && trans != opt) {
+                    pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x skip "
+                            "trans!=opt (trans=%d opt=%d)\n",
+                            i, list[i], trans, opt);
+                    continue;
+                }
+
+                pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x apply "
+                        "ra_set_value(to_khz=0x%x)\n",
+                        i, list[i], to_khz);
+                ra_set_value(list[i], to_khz);
+                continue;
+            }
+
             trans = ra_get_trans_opt(to, from);
             pr_info("RA: ra_set_clk_by_type: idx=%d id=0x%x from=0x%x to=0x%x "
                     "trans=%d opt=%d\n",

@@ -264,12 +264,12 @@ static int __vclk_set_rate(unsigned int id, unsigned int rate, int cmd) {
     }
 
     /* Determine LUT lookup rate unit */
-    if (IS_DFS_VCLK(id) || IS_COMMON_VCLK(id)) {
-        pr_info("VCLK: LUT lookup using rate=%u (DFS/COMMON)\n", rate);
+    if (IS_DFS_VCLK(id) || IS_COMMON_VCLK(id) || IS_ACPM_VCLK(id)) {
+        pr_info("VCLK: LUT lookup using rate=%u (DFS/COMMON/ACPM)\n", rate);
         new_lut = get_lut(vclk, rate);
     } else {
-        pr_info("VCLK: LUT lookup using rate/1000=%u (non-DFS/COMMON), raw "
-                "rate=%u\n",
+        pr_info("VCLK: LUT lookup using rate/1000=%u (non-DFS/COMMON/ACPM), "
+                "raw rate=%u\n",
                 rate / 1000, rate);
         new_lut = get_lut(vclk, rate / 1000);
     }
