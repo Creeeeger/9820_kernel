@@ -129,6 +129,13 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 	} else {
 		cal_info("vclk path: id=0x%x rate=%lu\n", id, rate);
 		ret = vclk_set_rate(id, rate);
+        
+        if(cal_is_gpu_dvfs_id(id)){
+            cal_info("GPUUU id=0x%x rate=%lu ret=%d\n", id, rate, ret);
+            
+            ret = exynos_acpm_set_rate(GET_IDX(id), rate);
+            cal_info("GPUUU id=0x%x rate=%lu ret=%d\n", id, rate, ret);
+        }
 	}
 
 	cal_info("exit id=0x%x rate=%lu ret=%d\n", id, rate, ret);
