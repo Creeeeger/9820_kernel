@@ -169,25 +169,6 @@ void acpm_log_print(void)
 	}
 }
 
-static void acpm_log_dump_raw(unsigned int max_entries)
-{
-	unsigned int entries;
-	size_t bytes;
-
-	if (!acpm_debug || !acpm_debug->log_buff_base ||
-	    !acpm_debug->log_buff_len || !acpm_debug->log_buff_size)
-		return;
-
-	entries = min_t(unsigned int, acpm_debug->log_buff_len, max_entries);
-	bytes = (size_t)entries * acpm_debug->log_buff_size;
-
-	pr_info("[ACPM] log raw dump: base=%p entries=%u entry_size=%u bytes=%zu\n",
-		acpm_debug->log_buff_base, entries, acpm_debug->log_buff_size, bytes);
-
-	print_hex_dump(KERN_INFO, "ACPM_LOG_RAW: ", DUMP_PREFIX_OFFSET, 16, 4,
-		       acpm_debug->log_buff_base, bytes, false);
-}
-
 void acpm_stop_log(void)
 {
 	acpm_stop_log_req = true;
@@ -723,18 +704,6 @@ static void log_buffer_init(struct device *dev, struct device_node *node)
 			virt_to_phys(acpm_debug->dump_dram_base));
 
 	spin_lock_init(&acpm_debug->lock);
-
-	if (acpm_debug->log_buff_len && acpm_debug->log_buff_size) {
-		pr_info("[ACPM] log buffer init: base=%p front=%p rear=%p "
-			"len=%u size=%u\n",
-			acpm_debug->log_buff_base, acpm_debug->log_buff_front,
-			acpm_debug->log_buff_rear, acpm_debug->log_buff_len,
-			acpm_debug->log_buff_size);
-		acpm_log_dump_raw(16);
-		is_acpm_stop_log = false;
-		pr_info("[ACPM] log buffer init: decode+print enabled\n");
-		acpm_log_print();
-	}
 }
 
 static int channel_init(void)
