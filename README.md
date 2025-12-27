@@ -32,16 +32,3 @@
     SFR_ACCESS(PLL_CON0_PLL_G3D_*) in cal-if/exynos9820/cmucal-sfr.c:2760-2765,
     and the PLL itself is wired in cmucal-node.c (PLL_G3D uses those indices at
     cal-if/exynos9820/cmucal-node.c:153).
-
-  Additional (non‑DVFS) writes:
-
-  - Power sequencing also writes PLL_CON0_PLL_G3D via PMUCAL sequences (cal-if/
-    exynos9820/flexpmu_cal_local_exynos9820.h:556-593), but that’s for power on/
-    off rather than the VCLK DVFS path.
-
-
----
-
-PLL_G3D never gets programmed for that VCLK
-      - If G3D DVFS is going through ACPM (IS_ACPM_VCLK(id)), the kernel doesn’t touch PLL_CON0 at all (cal-if/cal-if.c:90-107).
-      - Or the DVFS clock list for dvfs_g3d does not include PLL_G3D, so ra_set_pll() isn’t called for it.
