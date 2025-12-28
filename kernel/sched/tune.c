@@ -5,6 +5,7 @@
 #include <linux/printk.h>
 #include <linux/rcupdate.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/ems.h>
 #include <linux/ems_service.h>
 
@@ -18,6 +19,9 @@ extern struct reciprocal_value schedtune_spc_rdiv;
 
 /* We hold schedtune boost in effect for at least this long */
 #define SCHEDTUNE_BOOST_HOLD_NS 50000000ULL
+
+#define SCHEDTUNE_TOP_TASK_BOOST 100
+#define SCHEDTUNE_TOP_TASK_PREFER_PERF 1
 
 /*
  * EAS scheduler tunables for task groups.
@@ -65,6 +69,37 @@ static inline struct schedtune *task_schedtune(struct task_struct *tsk)
 static inline struct schedtune *parent_st(struct schedtune *st)
 {
 	return css_st(st->css.parent);
+}
+
+static bool schedtune_comm_matches(const char *comm, const char *name)
+{
+	size_t name_len = strlen(name);
+
+	if (name_len < TASK_COMM_LEN)
+		return !strncmp(comm, name, name_len) && comm[name_len] == '\0';
+
+	return !strncmp(comm, name, TASK_COMM_LEN - 1);
+}
+
+static bool schedtune_is_top_task(struct task_struct *p)
+{
+	const char *comm = p->comm;
+	size_t i;
+	static const char * const top_task_names[] = {
+		"system_server",
+		"systemui",
+		"SystemUI",
+		"com.android.systemui",
+		"com.sec.android.app.launcher", /* Samsung One UI Home */
+		"OneUIHome",
+	};
+
+	for (i = 0; i < ARRAY_SIZE(top_task_names); ++i) {
+		if (schedtune_comm_matches(comm, top_task_names[i]))
+			return true;
+	}
+
+	return false;
 }
 
 /*
@@ -404,6 +439,9 @@ int schedtune_task_boost(struct task_struct *p)
 	if (unlikely(!schedtune_initialized))
 		return 0;
 
+	if (schedtune_is_top_task(p))
+		return SCHEDTUNE_TOP_TASK_BOOST;
+
 	/* Get task boost value */
 	rcu_read_lock();
 	st = task_schedtune(p);
@@ -471,6 +509,9 @@ int schedtune_prefer_perf(struct task_struct *p)
 
 	if (unlikely(!schedtune_initialized))
 		return 0;
+
+	if (schedtune_is_top_task(p))
+		return SCHEDTUNE_TOP_TASK_PREFER_PERF;
 
 	/* Get prefer_perf value */
 	rcu_read_lock();
