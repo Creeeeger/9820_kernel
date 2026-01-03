@@ -33,4 +33,5 @@ static inline void ksu_invalidate_manager_uid()
 	ksu_manager_uid = KSU_INVALID_UID;
 }
 
+int ksu_observer_init(void);
 #endif
