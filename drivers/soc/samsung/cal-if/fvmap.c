@@ -35,9 +35,9 @@ static size_t g3d_lut_override_cap;
 #define G3D_MANUAL_RATE(_mhz, _uv) {.rate = (_mhz) * 1000U, .volt = (_uv)}
 
 static const struct rate_volt g3d_manual_ratevolt[] = {
-    G3D_MANUAL_RATE(910, 837500), // 4 140 0 0
-    G3D_MANUAL_RATE(858, 812500), // 4 132 0 0
-    G3D_MANUAL_RATE(806, 787500), // 4 124 0 0
+    /* G3D_MANUAL_RATE(910, 837500), // 4 140 0 0 */
+    /* G3D_MANUAL_RATE(858, 812500), // 4 132 0 0 */
+    /* G3D_MANUAL_RATE(806, 787500), // 4 124 0 0 */
     G3D_MANUAL_RATE(754, 768750), // 4 116 0 0
     G3D_MANUAL_RATE(702, 750000),
     G3D_MANUAL_RATE(676, 706250),

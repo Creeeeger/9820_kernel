@@ -2601,9 +2601,12 @@ static int ect_override_g3d_tables(void) {
 
     /* Ziel-Liste: kHz (DVFS) + MHz (ASV) muss konsistent sein */
     static const u32 freqs_khz[] = {
-        910000, 858000, 806000, 754000, 702000, 676000, 650000, 598000,
+        /* 910000, 858000, 806000, */
+        754000, 702000, 676000, 650000, 598000,
         572000, 433000, 377000, 325000, 260000, 200000, 156000, 100000};
-    static const int32_t freqs_mhz[] = {910, 858, 806, 754, 702, 676, 650, 598,
+    static const int32_t freqs_mhz[] = {
+                                        /* 910, 858, 806, */
+                                        754, 702, 676, 650, 598,
                                         572, 433, 377, 325, 260, 200, 156, 100};
 
     const int new_levels = ARRAY_SIZE(freqs_khz);
@@ -2813,9 +2816,9 @@ static int ect_override_g3d_tables(void) {
 
 static int ect_override_g3d_pll_table(void) {
     static const struct ect_pll_frequency desired[] = {
-        {.frequency = 910000000, .p = 4, .m = 140, .s = 0, .k = 0},
-        {.frequency = 858000000, .p = 4, .m = 132, .s = 0, .k = 0},
-        {.frequency = 806000000, .p = 4, .m = 124, .s = 0, .k = 0},
+        /* {.frequency = 910000000, .p = 4, .m = 140, .s = 0, .k = 0}, */
+        /* {.frequency = 858000000, .p = 4, .m = 132, .s = 0, .k = 0}, */
+        /* {.frequency = 806000000, .p = 4, .m = 124, .s = 0, .k = 0}, */
         {.frequency = 754000000, .p = 4, .m = 116, .s = 0, .k = 0},
         {.frequency = 702000000, .p = 4, .m = 108, .s = 0, .k = 0},
         {.frequency = 676000000, .p = 4, .m = 104, .s = 0, .k = 0},
@@ -2971,7 +2974,7 @@ int ect_parse_binary_header(void) {
 
     ect_override_g3d_tables();
     ect_override_g3d_pll_table();
-    ect_override_minmax_dvfs_g3d_maxfreq(910);
+    ect_override_minmax_dvfs_g3d_maxfreq(754);
 
     ect_header_info.block_handle = ect_header;
 
