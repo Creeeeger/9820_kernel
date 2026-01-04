@@ -159,7 +159,6 @@ int gpex_pm_power_on(struct device *dev)
 
 	if (ret >= 0) {
 		gpex_ifpo_power_up();
-		GPU_LOG_DETAILED(MALI_EXYNOS_INFO, LSI_GPU_RPM_RESUME_API, ret, 0u, "power on\n");
 	} else {
 		GPU_LOG(MALI_EXYNOS_ERROR, "runtime pm returned %d\n", ret);
 		gpex_debug_incr_error_cnt(HIST_RTPM);
@@ -172,17 +171,12 @@ int gpex_pm_power_on(struct device *dev)
 
 void gpex_pm_power_autosuspend(struct device *dev)
 {
-	int ret = 0;
-
 	gpex_ifpo_power_down();
 
 	if (!pm.skip_auto_suspend) {
 		pm_runtime_mark_last_busy(dev);
-		ret = pm_runtime_put_autosuspend(dev);
+		pm_runtime_put_autosuspend(dev);
 	}
-
-	GPU_LOG_DETAILED(MALI_EXYNOS_INFO, LSI_GPU_RPM_SUSPEND_API, ret, 0u,
-			 "power autosuspend prepare\n");
 }
 
 void gpex_pm_suspend(struct device *dev)
@@ -318,8 +312,6 @@ void gpex_pm_runtime_term(struct device *dev)
 
 int gpex_pm_runtime_on_prepare(struct device *dev)
 {
-	GPU_LOG_DETAILED(MALI_EXYNOS_DEBUG, LSI_GPU_ON, 0u, 0u, "runtime on callback\n");
-
 	pm.power_status = true;
 
 	gpexbe_smc_notify_power_on();
@@ -337,15 +329,12 @@ int pm_callback_runtime_on(struct kbase_device *kbdev)
 	if (!platform)
 		return -ENODEV;
 
-	GPU_LOG(MALI_EXYNOS_DEBUG, LSI_GPU_ON, 0u, 0u, "runtime on callback\n");
-
 	platform->power_status = true;
 
 	/* Set clock - restore previous g3d clock, after g3d runtime on */
 	if (gpex_dvfs_get_status() && platform->wakeup_lock) {
 		if (platform->restore_clock > G3D_DVFS_MIDDLE_CLOCK) {
 			gpex_clock_set(platform->restore_clock);
-			GPU_LOG(MALI_EXYNOS_DEBUG, LSI_GPU_ON, platform->restore_clock, gpex_clock_get_cur_clock(), "runtime on callback - restore clock = %d, cur clock = %d\n", platform->restore_clock, gpex_clock_get_cur_clock());
 			platform->restore_clock = 0;
 		}
 	}
@@ -356,8 +345,6 @@ int pm_callback_runtime_on(struct kbase_device *kbdev)
 void gpex_pm_runtime_off_prepare(struct device *dev)
 {
 	CSTD_UNUSED(dev);
-	GPU_LOG_DETAILED(MALI_EXYNOS_DEBUG, LSI_GPU_OFF, 0u, 0u, "runtime off callback\n");
-
 	gpexbe_smc_notify_power_off();
 
 	/* power up from ifpo down state before going to full rtpm power off */

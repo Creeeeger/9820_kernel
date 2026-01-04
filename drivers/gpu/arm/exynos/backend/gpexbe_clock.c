@@ -88,8 +88,6 @@ int gpexbe_clock_set_rate(int clk) {
     gpex_debug_new_record(HIST_CLOCK);
     gpex_debug_record_prev_data(HIST_CLOCK, gpexbe_clock_get_rate());
 
-    GPU_LOG(MALI_EXYNOS_DEBUG, "%s: setting rate to %d\n", __func__, clk);
-
     ret = cal_dfs_set_rate(cal_id, clk);
     if (!ret)
         cached_clock = clk;
@@ -99,9 +97,6 @@ int gpexbe_clock_set_rate(int clk) {
 
     if (ret)
         gpex_debug_incr_error_cnt(HIST_CLOCK);
-
-    GPU_LOG(MALI_EXYNOS_DEBUG, "%s: set rate ret=%d current=%d\n", __func__,
-            ret, cal_dfs_get_rate(cal_id));
 
     return ret;
 }

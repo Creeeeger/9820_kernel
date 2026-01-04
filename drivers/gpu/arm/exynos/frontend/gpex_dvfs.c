@@ -123,8 +123,6 @@ static int kbase_platform_dvfs_event(u32 utilisation)
 	}
 	mutex_unlock(&dvfs.handler_lock);
 
-	GPU_LOG(MALI_EXYNOS_DEBUG, "dvfs hanlder is called\n");
-
 	return 0;
 }
 
