@@ -39,3 +39,7 @@
 ---
 
 arch/arm64/boot/dts/exynos/exynos9820-mali_tables.dtsi -> modify for DTSI changes
+
+drivers/soc/samsung/cal-if/g3d_dvfs_table.h -> modify for ect fvmap etc changes
+
+--> modify both at the same time for working OC

@@ -9,7 +9,7 @@
 
 #include "cmucal.h"
 #include "fvmap.h"
-#include "gpu_dvfs_overrides.h"
+#include "g3d_dvfs_table.h"
 #include "ra.h"
 #include "vclk.h"
 #include <linux/errno.h>
@@ -32,26 +32,14 @@ static int percent_margin_table[MAX_MARGIN_ID];
 static struct vclk_lut *g3d_lut_override;
 static size_t g3d_lut_override_cap;
 
-#define G3D_MANUAL_RATE(_mhz, _uv) {.rate = (_mhz) * 1000U, .volt = (_uv)}
+#define G3D_MANUAL_RATE(_khz, _uv) {.rate = (_khz), .volt = (_uv)}
 
+#define G3D_MANUAL_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	G3D_MANUAL_RATE(rate_khz, volt_uv),
 static const struct rate_volt g3d_manual_ratevolt[] = {
-    /* G3D_MANUAL_RATE(910, 837500), // 4 140 0 0 */
-    /* G3D_MANUAL_RATE(858, 812500), // 4 132 0 0 */
-    /* G3D_MANUAL_RATE(806, 787500), // 4 124 0 0 */
-    G3D_MANUAL_RATE(754, 768750), // 4 116 0 0
-    G3D_MANUAL_RATE(702, 750000),
-    G3D_MANUAL_RATE(676, 706250),
-    G3D_MANUAL_RATE(650, 700000),
-    G3D_MANUAL_RATE(598, 681250),
-    G3D_MANUAL_RATE(572, 675000),
-    G3D_MANUAL_RATE(433, 650000),
-    G3D_MANUAL_RATE(377, 637500),
-    G3D_MANUAL_RATE(325, 612500),
-    G3D_MANUAL_RATE(260, 600000),
-    G3D_MANUAL_RATE(200, 593750),
-    G3D_MANUAL_RATE(156, 562500),
-    G3D_MANUAL_RATE(100, 537500),
+	G3D_DVFS_TABLE_ENTRY_LIST(G3D_MANUAL_ENTRY)
 };
+#undef G3D_MANUAL_ENTRY
 
 static size_t g3d_find_closest_lv(const struct rate_volt_header *old_rv,
                                   size_t old_lv, unsigned int target_rate) {

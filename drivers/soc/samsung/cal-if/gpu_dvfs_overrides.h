@@ -12,17 +12,25 @@
 
 #include <linux/kernel.h>
 
+#include "g3d_dvfs_table.h"
+
 struct gpu_dvfs_override_entry {
 	unsigned long rate_khz;
 	unsigned int volt_uv;
 };
 
+#define G3D_OVERRIDE_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	G3D_OVERRIDE_ENTRY_##override(rate_khz, volt_uv)
+#define G3D_OVERRIDE_ENTRY_1(rate_khz, volt_uv) { rate_khz, volt_uv },
+#define G3D_OVERRIDE_ENTRY_0(rate_khz, volt_uv)
+
 static const struct gpu_dvfs_override_entry gpu_dvfs_overrides[] = {
-    /* { 910000, 837500 }, */
-    /* { 858000, 812500 }, */
-    /* { 806000, 787500 }, */
-	{ 754000, 768750 }
+	G3D_DVFS_TABLE_ENTRY_LIST(G3D_OVERRIDE_ENTRY)
 };
+
+#undef G3D_OVERRIDE_ENTRY_0
+#undef G3D_OVERRIDE_ENTRY_1
+#undef G3D_OVERRIDE_ENTRY
 
 static inline size_t gpu_dvfs_override_count(void)
 {

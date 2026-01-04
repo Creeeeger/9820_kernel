@@ -14,6 +14,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
+#include "cal-if/g3d_dvfs_table.h"
+
 #define ALIGNMENT_SIZE 4
 
 #define ECT_PHYS_ADDR 0x95000000
@@ -35,6 +37,23 @@ static phys_addr_t ect_address;
 static phys_addr_t ect_size;
 
 static struct vm_struct ect_early_vm;
+
+#define G3D_FREQ_KHZ_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	rate_khz,
+static const u32 g3d_freqs_khz[] = { G3D_DVFS_TABLE_ENTRY_LIST(G3D_FREQ_KHZ_ENTRY) };
+#undef G3D_FREQ_KHZ_ENTRY
+
+#define G3D_FREQ_MHZ_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	((rate_khz) / 1000),
+static const int32_t g3d_freqs_mhz[] = { G3D_DVFS_TABLE_ENTRY_LIST(G3D_FREQ_MHZ_ENTRY) };
+#undef G3D_FREQ_MHZ_ENTRY
+
+#define G3D_PLL_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	{ .frequency = (pll_freq_hz), .p = (p), .m = (m), .s = (s), .k = (k) },
+static const struct ect_pll_frequency g3d_pll_freqs[] = {
+	G3D_DVFS_TABLE_ENTRY_LIST(G3D_PLL_ENTRY)
+};
+#undef G3D_PLL_ENTRY
 
 /* API for internal */
 
@@ -2599,17 +2618,7 @@ static int ect_override_g3d_tables(void) {
 
     int old_levels;
 
-    /* Ziel-Liste: kHz (DVFS) + MHz (ASV) muss konsistent sein */
-    static const u32 freqs_khz[] = {
-        /* 910000, 858000, 806000, */
-        754000, 702000, 676000, 650000, 598000,
-        572000, 433000, 377000, 325000, 260000, 200000, 156000, 100000};
-    static const int32_t freqs_mhz[] = {
-                                        /* 910, 858, 806, */
-                                        754, 702, 676, 650, 598,
-                                        572, 433, 377, 325, 260, 200, 156, 100};
-
-    const int new_levels = ARRAY_SIZE(freqs_khz);
+    const int new_levels = ARRAY_SIZE(g3d_freqs_khz);
 
     /* --- DVFS domain holen --- */
     dvfs_blk = ect_get_block(BLOCK_DVFS);
@@ -2639,7 +2648,7 @@ static int ect_override_g3d_tables(void) {
             p = (u32 *)new_list_level;
 
             for (i = 0; i < new_levels; i++) {
-                p[i * stride_u32 + 0] = freqs_khz[i]; /* freq kHz */
+                p[i * stride_u32 + 0] = g3d_freqs_khz[i]; /* freq kHz */
                 p[i * stride_u32 + 1] = 1;            /* enable */
             }
 
@@ -2665,8 +2674,8 @@ static int ect_override_g3d_tables(void) {
         }
 
         dvfs->num_of_level = new_levels;
-        dvfs->max_frequency = freqs_khz[0];
-        dvfs->min_frequency = freqs_khz[new_levels - 1];
+        dvfs->max_frequency = g3d_freqs_khz[0];
+        dvfs->min_frequency = g3d_freqs_khz[new_levels - 1];
 
     }
 
@@ -2694,7 +2703,7 @@ static int ect_override_g3d_tables(void) {
             if (!new_level_list)
                 return -ENOMEM;
 
-            memcpy(new_level_list, freqs_mhz, sizeof(freqs_mhz));
+            memcpy(new_level_list, g3d_freqs_mhz, sizeof(g3d_freqs_mhz));
             asv->level_list = new_level_list;
         }
 
@@ -2815,25 +2824,6 @@ static int ect_override_g3d_tables(void) {
 }
 
 static int ect_override_g3d_pll_table(void) {
-    static const struct ect_pll_frequency desired[] = {
-        /* {.frequency = 910000000, .p = 4, .m = 140, .s = 0, .k = 0}, */
-        /* {.frequency = 858000000, .p = 4, .m = 132, .s = 0, .k = 0}, */
-        /* {.frequency = 806000000, .p = 4, .m = 124, .s = 0, .k = 0}, */
-        {.frequency = 754000000, .p = 4, .m = 116, .s = 0, .k = 0},
-        {.frequency = 702000000, .p = 4, .m = 108, .s = 0, .k = 0},
-        {.frequency = 676000000, .p = 4, .m = 104, .s = 0, .k = 0},
-        {.frequency = 650000000, .p = 4, .m = 100, .s = 0, .k = 0},
-        {.frequency = 598000000, .p = 4, .m = 184, .s = 1, .k = 0},
-        {.frequency = 572000000, .p = 4, .m = 176, .s = 1, .k = 0},
-        {.frequency = 432250000, .p = 4, .m = 133, .s = 1, .k = 0},
-        {.frequency = 377000000, .p = 4, .m = 116, .s = 1, .k = 0},
-        {.frequency = 325000000, .p = 4, .m = 100, .s = 1, .k = 0},
-        {.frequency = 260000000, .p = 4, .m = 160, .s = 2, .k = 0},
-        {.frequency = 199875000, .p = 4, .m = 123, .s = 2, .k = 0},
-        {.frequency = 156000000, .p = 4, .m = 96, .s = 2, .k = 0},
-        {.frequency = 99937000, .p = 4, .m = 123, .s = 3, .k = 0},
-    };
-
     void *pll_blk;
     struct ect_pll *pll;
     struct ect_pll_frequency *new_list;
@@ -2848,12 +2838,12 @@ static int ect_override_g3d_pll_table(void) {
     if (!pll)
         return -ENODEV;
 
-    if (pll->num_of_frequency == ARRAY_SIZE(desired) && pll->frequency_list &&
-        !memcmp(pll->frequency_list, desired, sizeof(desired))) {
+    if (pll->num_of_frequency == ARRAY_SIZE(g3d_pll_freqs) && pll->frequency_list &&
+        !memcmp(pll->frequency_list, g3d_pll_freqs, sizeof(g3d_pll_freqs))) {
         return 0;
     }
 
-    new_list = kmemdup(desired, sizeof(desired), GFP_KERNEL);
+    new_list = kmemdup(g3d_pll_freqs, sizeof(g3d_pll_freqs), GFP_KERNEL);
     if (!new_list)
         return -ENOMEM;
 
@@ -2861,7 +2851,7 @@ static int ect_override_g3d_pll_table(void) {
     override_list = new_list;
 
     pll->frequency_list = override_list;
-    pll->num_of_frequency = ARRAY_SIZE(desired);
+    pll->num_of_frequency = ARRAY_SIZE(g3d_pll_freqs);
 
     return 0;
 }
@@ -2974,7 +2964,7 @@ int ect_parse_binary_header(void) {
 
     ect_override_g3d_tables();
     ect_override_g3d_pll_table();
-    ect_override_minmax_dvfs_g3d_maxfreq(754);
+    ect_override_minmax_dvfs_g3d_maxfreq(g3d_freqs_khz[0]);
 
     ect_header_info.block_handle = ect_header;
 
