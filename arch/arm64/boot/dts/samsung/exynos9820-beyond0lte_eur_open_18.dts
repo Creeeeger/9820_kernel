@@ -21,6 +21,7 @@
 #include "exynos9820-beyond0lte_fingerprint_00.dtsi"
 #include "exynos9820-beyond0lte_eur_open_gpio_02.dtsi"
 #include "exynos9820-beyond0lte_optics-r00.dtsi"
+#include "exynos9820-mali_rev2.dtsi"
 
 / {
 	compatible = "samsung,BEYOND0LTE EUR OPEN 18", "samsung,EXYNOS9820";
