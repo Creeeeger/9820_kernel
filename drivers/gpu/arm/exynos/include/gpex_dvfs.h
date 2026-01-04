@@ -97,12 +97,8 @@ int gpex_dvfs_get_status(void);
 /**
  * gpex_dvfs_get_governor_type() - get the current dvfs governor type
  *
- * G3D_DVFS_GOVERNOR_DEFAULT = 0,
- * G3D_DVFS_GOVERNOR_INTERACTIVE,
- * G3D_DVFS_GOVERNOR_JOINT,
- * G3D_DVFS_GOVERNOR_STATIC,
+ * G3D_DVFS_GOVERNOR_INTERACTIVE = 0,
  * G3D_DVFS_GOVERNOR_BOOSTER,
- * G3D_DVFS_GOVERNOR_DYNAMIC,
  *
  * Returns: gpu_governor_type
  */

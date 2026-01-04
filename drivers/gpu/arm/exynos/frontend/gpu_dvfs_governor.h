@@ -22,12 +22,8 @@
 #define _GPU_DVFS_GOVERNOR_H_
 
 typedef enum {
-	G3D_DVFS_GOVERNOR_DEFAULT = 0,
-	G3D_DVFS_GOVERNOR_INTERACTIVE,
-	G3D_DVFS_GOVERNOR_JOINT,
-	G3D_DVFS_GOVERNOR_STATIC,
+	G3D_DVFS_GOVERNOR_INTERACTIVE = 0,
 	G3D_DVFS_GOVERNOR_BOOSTER,
-	G3D_DVFS_GOVERNOR_DYNAMIC,
 	G3D_MAX_GOVERNOR_NUM,
 } gpu_governor_type;
 
@@ -36,5 +32,4 @@ void *gpu_dvfs_get_governor_info(void);
 int gpu_dvfs_decide_next_freq(int utilization);
 int gpu_dvfs_governor_setting(int governor_type);
 int gpu_dvfs_governor_setting_locked(int governor_type);
-int gpu_weight_prediction_utilisation(int utilization);
 #endif /* _GPU_DVFS_GOVERNOR_H_ */
