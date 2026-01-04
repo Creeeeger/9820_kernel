@@ -32,3 +32,10 @@
     SFR_ACCESS(PLL_CON0_PLL_G3D_*) in cal-if/exynos9820/cmucal-sfr.c:2760-2765,
     and the PLL itself is wired in cmucal-node.c (PLL_G3D uses those indices at
     cal-if/exynos9820/cmucal-node.c:153).
+
+
+
+
+---
+
+arch/arm64/boot/dts/exynos/exynos9820-mali_tables.dtsi -> modify for DTSI changes
