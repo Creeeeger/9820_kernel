@@ -49,7 +49,7 @@ static const int32_t g3d_freqs_mhz[] = { G3D_DVFS_TABLE_ENTRY_LIST(G3D_FREQ_MHZ_
 #undef G3D_FREQ_MHZ_ENTRY
 
 #define G3D_PLL_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
-	{ .frequency = (pll_freq_hz), .p = (p), .m = (m), .s = (s), .k = (k) },
+	{ (pll_freq_hz), (p), (m), (s), (k) },
 static const struct ect_pll_frequency g3d_pll_freqs[] = {
 	G3D_DVFS_TABLE_ENTRY_LIST(G3D_PLL_ENTRY)
 };
