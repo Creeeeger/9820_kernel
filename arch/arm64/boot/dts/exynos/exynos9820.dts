@@ -4533,10 +4533,10 @@
 		interrupts = <0 INTREQ__MMC_CARD 0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-	clocks = <&clock DOUT_CLK_FSYS1_MMC_CARD>, <&clock GATE_MMC_CARD>;
-	clock-names = "ciu", "ciu_gate";
-	status = "okay";
-};
+		clocks = <&clock DOUT_CLK_FSYS1_MMC_CARD>, <&clock GATE_MMC_CARD>;
+		clock-names = "ciu", "ciu_gate";
+		status = "disabled";
+	};
 
 	rtc@15950000 {
 		compatible = "samsung,exynos8-rtc";

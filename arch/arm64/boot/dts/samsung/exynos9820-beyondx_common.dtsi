@@ -1105,7 +1105,7 @@
 &dwmmc_2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	status = "okay";
+	status = "disabled";
 	num-slots = <1>;
 	supports-4bit;
 	supports-cmd23;
@@ -2777,3 +2777,4 @@
 		samsung,pin-drv = <3>;
 	};
 };
+
