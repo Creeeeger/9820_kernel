@@ -3007,7 +3007,7 @@ void ect_init_map_io(void) {
     int ret;
 
     if (!ect_early_vm.phys_addr || !ect_early_vm.size) {
-        pr_info("[ECT] : skip mapping because early vm is not initialized\n");
+        pr_debug("[ECT] : skip mapping because early vm is not initialized\n");
         return;
     }
 
