@@ -17,13 +17,144 @@ Options:
     -m, --model [value]     Specify the model code of the phone
     -k, --ksu [Y/n]         Include KernelSU
     -r, --recovery [y/N]    Compile kernel for an Android Recovery
+    -g, --gpu-max [value]   Set GPU max MHz (ex: 806) using forOC tables
 EOF
+}
+
+apply_gpu_tables()
+{
+    local max_khz="$1"
+    local src_dtsi="$PWD/forOC/exynos9820-mali_tables.dtsi"
+    local dst_dtsi="$PWD/arch/arm64/boot/dts/exynos/exynos9820-mali_tables.dtsi"
+    local src_cal="$PWD/forOC/g3d_dvfs_table.h"
+    local dst_cal="$PWD/drivers/soc/samsung/cal-if/g3d_dvfs_table.h"
+
+    if [ ! -f "$src_dtsi" ] || [ ! -f "$src_cal" ]; then
+        echo "GPU table sources not found under forOC; skipping GPU table update."
+        return 1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 not found; cannot update GPU tables."
+        return 1
+    fi
+
+    python3 - "$max_khz" "$src_dtsi" "$dst_dtsi" "$src_cal" "$dst_cal" << 'PY'
+import re
+import sys
+from pathlib import Path
+
+max_khz = int(sys.argv[1])
+src_dtsi = Path(sys.argv[2])
+dst_dtsi = Path(sys.argv[3])
+src_cal = Path(sys.argv[4])
+dst_cal = Path(sys.argv[5])
+
+def parse_table(lines, key):
+    start = next(i for i, l in enumerate(lines) if key in l)
+    end = next(i for i in range(start + 1, len(lines)) if ">;" in lines[i])
+    entries = []
+    indent = None
+    for line in lines[start + 1:end + 1]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("/*"):
+            continue
+        cleaned = re.sub(r">;\s*$", "", stripped)
+        cleaned = re.sub(r">\s*$", "", cleaned)
+        parts = cleaned.split()
+        if not parts or not parts[0].isdigit():
+            continue
+        freq = int(parts[0])
+        if indent is None:
+            indent = line[:len(line) - len(line.lstrip())]
+        entries.append((freq, cleaned))
+    if indent is None:
+        indent = "\t"
+    return start, end, entries, indent
+
+def update_size_line(line, row, cols):
+    return re.sub(r"<\s*\d+\s+%d\s*>" % cols, f"<{row} {cols}>", line)
+
+def update_clock_line(line, value):
+    return re.sub(r"<\s*\d+\s*>", f"<{value}>", line)
+
+def write_dtsi():
+    lines = src_dtsi.read_text().splitlines(True)
+    start, end, entries, indent = parse_table(lines, "gpu_dvfs_table = <")
+    filtered = [e for e in entries if e[0] <= max_khz]
+    if not any(e[0] == max_khz for e in filtered):
+        raise SystemExit(f"GPU max {max_khz} not found in DVFS table")
+    dvfs_block = []
+    for idx, (_, cleaned) in enumerate(filtered):
+        suffix = " >;\n" if idx == len(filtered) - 1 else "\n"
+        dvfs_block.append(f"{indent}{cleaned}{suffix}")
+    lines[start + 1:end + 1] = dvfs_block
+
+    start, end, entries, indent = parse_table(lines, "gpu_cl_pmqos_table = <")
+    filtered_cl = [e for e in entries if e[0] <= max_khz]
+    if not any(e[0] == max_khz for e in filtered_cl):
+        raise SystemExit(f"GPU max {max_khz} not found in PMQoS table")
+    cl_block = []
+    for idx, (_, cleaned) in enumerate(filtered_cl):
+        suffix = " >;\n" if idx == len(filtered_cl) - 1 else "\n"
+        cl_block.append(f"{indent}{cleaned}{suffix}")
+    lines[start + 1:end + 1] = cl_block
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("gpu_dvfs_table_size"):
+            lines[i] = update_size_line(line, len(filtered), 8)
+        elif line.strip().startswith("gpu_cl_pmqos_table_size"):
+            lines[i] = update_size_line(line, len(filtered_cl), 5)
+        elif line.strip().startswith("gpu_max_clock_limit"):
+            lines[i] = update_clock_line(line, max_khz)
+        elif line.strip().startswith("gpu_max_clock"):
+            lines[i] = update_clock_line(line, max_khz)
+
+    dst_dtsi.write_text("".join(lines))
+
+def write_cal():
+    lines = src_cal.read_text().splitlines(True)
+    start = next(i for i, l in enumerate(lines)
+                 if "G3D_DVFS_TABLE_ENTRY_LIST" in l)
+    i = start + 1
+    entries = []
+    indent = None
+    while i < len(lines):
+        line = lines[i]
+        if line.strip().startswith("#endif") or not line.strip():
+            break
+        m = re.search(r"\bX\((\d+),", line)
+        if m:
+            if indent is None:
+                indent = line[:len(line) - len(line.lstrip())]
+            entries.append((int(m.group(1)), line))
+        i += 1
+    if indent is None:
+        indent = "\t"
+    filtered = [(f, l) for (f, l) in entries if f <= max_khz]
+    if not any(f == max_khz for f, _ in filtered):
+        raise SystemExit(f"GPU max {max_khz} not found in CAL table")
+    new_list = []
+    for idx, (_, line) in enumerate(filtered):
+        core = line.rstrip().rstrip("\\").rstrip()
+        suffix = "\n" if idx == len(filtered) - 1 else "                               \\\n"
+        new_list.append(f"{indent}{core}{suffix}")
+    lines[start + 1:i] = new_list
+    dst_cal.write_text("".join(lines))
+
+write_dtsi()
+write_cal()
+PY
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model|-m)
             MODEL="$2"
+            shift 2
+            ;;
+        --gpu-max|-g)
+            GPU_MAX="$2"
             shift 2
             ;;
         --ksu|-k)
@@ -146,6 +277,25 @@ fi
 
 if [[ "$KSU_OPTION" == "y" ]]; then
     KSU=ksu.config
+fi
+
+if [ -n "$GPU_MAX" ]; then
+    if ! [[ "$GPU_MAX" =~ ^[0-9]+$ ]]; then
+        echo "Invalid GPU max value: $GPU_MAX"
+        exit 1
+    fi
+
+    if [ "$SOC" != "exynos9820" ]; then
+        echo "GPU max override is only supported on exynos9820; skipping."
+    else
+        if [ "$GPU_MAX" -lt 10000 ]; then
+            GPU_MAX_KHZ=$((GPU_MAX * 1000))
+        else
+            GPU_MAX_KHZ=$GPU_MAX
+        fi
+        echo "Applying GPU max: ${GPU_MAX_KHZ} kHz (from forOC tables)"
+        apply_gpu_tables "$GPU_MAX_KHZ" || abort
+    fi
 fi
 
 rm -rf build/out/$MODEL
