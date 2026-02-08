@@ -934,6 +934,30 @@ void ra_set_clk_by_type(unsigned int *list,
 
 		to = lut->params[i];
 		from = ra_get_value(list[i]);
+
+		if (type == PLL_TYPE) {
+			struct cmucal_clk *clk = cmucal_get_node(list[i]);
+			unsigned int to_khz = to;
+			unsigned int from_khz = from / 1000;
+
+			if (clk) {
+				struct cmucal_pll *pll = to_pll_clk(clk);
+
+				if (lut && lut->rate && pll && pll->rate_table &&
+				    to < pll->rate_count)
+					to_khz = pll->rate_table[to].rate / 1000;
+			}
+
+			trans = ra_get_trans_opt(to_khz, from_khz);
+			if (trans == TRANS_IGNORE)
+				continue;
+			if (opt != TRANS_FORCE && trans != opt)
+				continue;
+
+			ra_set_value(list[i], to_khz);
+			continue;
+		}
+
 		trans = ra_get_trans_opt(to, from);
 		if (trans == TRANS_IGNORE)
 			continue;
