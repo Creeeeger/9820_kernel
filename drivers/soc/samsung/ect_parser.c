@@ -8,8 +8,12 @@
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/file.h>
+#include <linux/io.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/vmalloc.h>
+
+#include "cal-if/g3d_dvfs_table.h"
 
 #define ALIGNMENT_SIZE	 4
 
@@ -31,6 +35,11 @@ static phys_addr_t ect_size;
 static struct vm_struct ect_early_vm;
 
 /* API for internal */
+
+static u32 ect_g3d_max_freq_khz(void);
+static int ect_override_g3d_tables(void);
+static int ect_override_g3d_pll_table(void);
+static int ect_override_minmax_dvfs_g3d_maxfreq(u32 new_max_khz);
 
 static void ect_parse_integer(void **address, void *value)
 {
@@ -2105,6 +2114,38 @@ static struct file_operations ops_all_dump = {
 	.release = single_release,
 };
 
+static ssize_t ect_raw_blob_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	void *base;
+	phys_addr_t phys;
+	size_t size;
+	ssize_t ret;
+
+	if (!ect_early_vm.phys_addr || !ect_early_vm.size)
+		return -ENODEV;
+
+	phys = ect_early_vm.phys_addr;
+	size = ect_early_vm.size;
+
+	base = memremap(phys, size, MEMREMAP_WB);
+	if (!base) {
+		pr_err("[ect-raw] failed to remap 0x%llx (size 0x%zx)\n",
+		       (unsigned long long)phys, size);
+		return -ENOMEM;
+	}
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, base, size);
+
+	memunmap(base);
+
+	return ret;
+}
+
+static const struct file_operations ops_raw_blob_dump = {
+	.read = ect_raw_blob_read,
+	.llseek = default_llseek,
+};
+
 static ssize_t create_binary_store(struct class *class,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
@@ -2161,6 +2202,11 @@ static int ect_dump_init(void)
 
 	d = debugfs_create_file("all_dump", S_IRUGO, root, NULL,
 				&ops_all_dump);
+	if (!d)
+		return -ENOMEM;
+
+	d = debugfs_create_file("raw_blob", S_IRUGO, root, NULL,
+				&ops_raw_blob_dump);
 	if (!d)
 		return -ENOMEM;
 
@@ -2586,6 +2632,10 @@ int ect_parse_binary_header(void)
 		}
 	}
 
+	ect_override_g3d_tables();
+	ect_override_g3d_pll_table();
+	ect_override_minmax_dvfs_g3d_maxfreq(ect_g3d_max_freq_khz());
+
 	ect_header_info.block_handle = ect_header;
 
 	return ret;
@@ -2628,6 +2678,11 @@ void ect_init_map_io(void)
 	struct page **pages;
 	int ret;
 
+	if (!ect_early_vm.phys_addr || !ect_early_vm.size) {
+		pr_debug("[ECT] : skip mapping because early vm is not initialized\n");
+		return;
+	}
+
 	page_size = ect_early_vm.size / PAGE_SIZE;
 	if (ect_early_vm.size % PAGE_SIZE)
 		page_size++;
@@ -2642,4 +2697,318 @@ void ect_init_map_io(void)
 		pr_err("[ECT] : failed to mapping va and pa(%d)\n", ret);
 	}
 	kfree(pages);
+}
+
+/* S10-only: G3D DVFS/PLL/GEN_PARAM table overrides */
+
+#define G3D_FREQ_KHZ_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	rate_khz,
+static const u32 g3d_freqs_khz[] = { G3D_DVFS_TABLE_ENTRY_LIST(G3D_FREQ_KHZ_ENTRY) };
+#undef G3D_FREQ_KHZ_ENTRY
+
+#define G3D_FREQ_MHZ_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	((rate_khz) / 1000),
+static const int32_t g3d_freqs_mhz[] = { G3D_DVFS_TABLE_ENTRY_LIST(G3D_FREQ_MHZ_ENTRY) };
+#undef G3D_FREQ_MHZ_ENTRY
+
+#define G3D_PLL_ENTRY(rate_khz, volt_uv, pll_freq_hz, p, m, s, k, override) \
+	{ (pll_freq_hz), (p), (m), (s), (k) },
+static const struct ect_pll_frequency g3d_pll_freqs[] = {
+	G3D_DVFS_TABLE_ENTRY_LIST(G3D_PLL_ENTRY)
+};
+#undef G3D_PLL_ENTRY
+
+static u32 ect_g3d_max_freq_khz(void)
+{
+	return g3d_freqs_khz[0];
+}
+
+static int ect_override_g3d_tables(void)
+{
+	void *dvfs_blk, *asv_blk, *gen_blk;
+	struct ect_dvfs_domain *dvfs;
+	struct ect_voltage_domain *asv;
+	struct ect_gen_param_table *margin_tbl;
+	int old_levels;
+	const int new_levels = ARRAY_SIZE(g3d_freqs_khz);
+
+	/* --- DVFS domain holen --- */
+	dvfs_blk = ect_get_block(BLOCK_DVFS);
+	if (!dvfs_blk)
+		return -ENODEV;
+
+	dvfs = ect_dvfs_get_domain(dvfs_blk, "dvfs_g3d");
+	if (!dvfs)
+		return -ENODEV;
+
+	old_levels = dvfs->num_of_level;
+
+	if (old_levels < new_levels) {
+		/* list_level neu */
+		{
+			void *new_list_level;
+			u32 *p;
+			int i;
+			const size_t stride_u32 = sizeof(struct ect_dvfs_level) / sizeof(u32);
+
+			new_list_level = kzalloc(sizeof(struct ect_dvfs_level) * new_levels, GFP_KERNEL);
+			if (!new_list_level)
+				return -ENOMEM;
+
+			p = (u32 *)new_list_level;
+
+			for (i = 0; i < new_levels; i++) {
+				p[i * stride_u32 + 0] = g3d_freqs_khz[i]; /* freq kHz */
+				p[i * stride_u32 + 1] = 1; /* enable */
+			}
+
+			dvfs->list_level = new_list_level;
+		}
+
+		/* list_dvfs_value neu (Index-Mapping pro Clock) */
+		{
+			u32 *new_map;
+			int c, i;
+			const int clocks = dvfs->num_of_clock;
+
+			new_map = kzalloc(sizeof(u32) * clocks * new_levels, GFP_KERNEL);
+			if (!new_map)
+				return -ENOMEM;
+
+			for (c = 0; c < clocks; c++) {
+				for (i = 0; i < new_levels; i++)
+					new_map[c * new_levels + i] = (u32)i;
+			}
+
+			dvfs->list_dvfs_value = new_map;
+		}
+
+		dvfs->num_of_level = new_levels;
+		dvfs->max_frequency = g3d_freqs_khz[0];
+		dvfs->min_frequency = g3d_freqs_khz[new_levels - 1];
+	}
+
+	/* --- ASV domain holen --- */
+	asv_blk = ect_get_block(BLOCK_ASV);
+	if (!asv_blk)
+		return -ENODEV;
+
+	asv = ect_asv_get_domain(asv_blk, "dvfs_g3d");
+	if (!asv)
+		return -ENODEV;
+
+	old_levels = asv->num_of_level;
+
+	if (old_levels < new_levels) {
+		const int delta = new_levels - old_levels;
+		const int g = asv->num_of_group;
+		int t;
+
+		/* 1) level_list (MHz) neu */
+		{
+			int32_t *new_level_list;
+
+			new_level_list = kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
+			if (!new_level_list)
+				return -ENOMEM;
+
+			memcpy(new_level_list, g3d_freqs_mhz, sizeof(g3d_freqs_mhz));
+			asv->level_list = new_level_list;
+		}
+
+		/*
+		 * 2) jede TABLE VERSION aufblasen:
+		 * neue Top-Rows = Kopie der alten Top-Row (konservativ)
+		 * alte Rows werden um delta nach unten geschoben
+		 */
+		for (t = 0; t < asv->num_of_table; t++) {
+			struct ect_voltage_table *tbl = &asv->table_list[t];
+
+			/* level_en erweitern (wenn vorhanden) */
+			if (tbl->level_en) {
+				int32_t *old_en = (int32_t *)tbl->level_en;
+				int32_t *new_en = kzalloc(sizeof(int32_t) * new_levels, GFP_KERNEL);
+				int r;
+
+				if (!new_en)
+					return -ENOMEM;
+
+				for (r = 0; r < delta; r++)
+					new_en[r] = old_en[0];
+
+				memcpy(&new_en[delta], old_en, sizeof(int32_t) * old_levels);
+				tbl->level_en = new_en;
+			}
+
+			/* parser_version>=3: voltages_step (u8) */
+			if (tbl->voltages_step) {
+				u8 *old = (u8 *)tbl->voltages_step;
+				u8 *neu = kzalloc(sizeof(u8) * g * new_levels, GFP_KERNEL);
+				int r;
+
+				if (!neu)
+					return -ENOMEM;
+
+				/* neue Top-Rows (0..delta-1) = alte Row0 */
+				for (r = 0; r < delta; r++)
+					memcpy(&neu[g * r], &old[0], g * sizeof(u8));
+
+				/* alte Rows nach unten schieben */
+				memcpy(&neu[g * delta], &old[0], g * old_levels * sizeof(u8));
+
+				tbl->voltages_step = neu;
+			} else if (tbl->voltages) {
+				/* parser_version<3: voltages (int32 uV) */
+				int32_t *old = (int32_t *)tbl->voltages;
+				int32_t *neu = kzalloc(sizeof(int32_t) * g * new_levels, GFP_KERNEL);
+				int r;
+
+				if (!neu)
+					return -ENOMEM;
+
+				for (r = 0; r < delta; r++)
+					memcpy(&neu[g * r], &old[0], g * sizeof(int32_t));
+
+				memcpy(&neu[g * delta], &old[0], g * old_levels * sizeof(int32_t));
+
+				tbl->voltages = neu;
+			} else {
+				pr_warn("[ECT] g3d override: ASV table %d has no voltage data\n", t);
+			}
+		}
+
+		asv->num_of_level = new_levels;
+	}
+
+	/* --- GEN_PARAM: G3D_DD_margin aufblasen (auf new_levels) --- */
+	gen_blk = ect_get_block(BLOCK_GEN_PARAM);
+	if (!gen_blk)
+		return 0; /* nicht fatal */
+
+	margin_tbl = ect_gen_param_get_table(gen_blk, "G3D_DD_margin");
+	if (margin_tbl) {
+		const int cols = margin_tbl->num_of_col;
+		const int rows = margin_tbl->num_of_row;
+
+		if (cols == 2 && rows > 0 && rows < new_levels && margin_tbl->parameter) {
+			int32_t *oldp = (int32_t *)margin_tbl->parameter;
+			int32_t *newp = kzalloc(sizeof(int32_t) * cols * new_levels, GFP_KERNEL);
+			const int delta = new_levels - rows;
+			int i;
+			int32_t top_margin = oldp[1];
+
+			if (!newp)
+				return -ENOMEM;
+
+			if (top_margin == 0)
+				top_margin = 12500;
+
+			/* neue Top-Rows: konservativ gleicher Margin wie alte Top-Row */
+			for (i = 0; i < delta; i++) {
+				newp[i * 2 + 0] = i;
+				newp[i * 2 + 1] = top_margin;
+			}
+
+			/*
+			 * alte Rows nach unten schieben, Margin aus alter 2. Spalte
+			 * uebernehmen
+			 */
+			for (i = 0; i < rows; i++) {
+				newp[(i + delta) * 2 + 0] = i + delta;
+				newp[(i + delta) * 2 + 1] = oldp[i * 2 + 1];
+			}
+
+			margin_tbl->parameter = newp;
+			margin_tbl->num_of_row = new_levels;
+		}
+	}
+
+	return 0;
+}
+
+static int ect_override_g3d_pll_table(void)
+{
+	void *pll_blk;
+	struct ect_pll *pll;
+	struct ect_pll_frequency *new_list;
+	static struct ect_pll_frequency *override_list;
+
+	pll_blk = ect_get_block(BLOCK_PLL);
+	if (!pll_blk)
+		return -ENODEV;
+
+	pll = ect_pll_get_pll(pll_blk, "PLL_G3D");
+	if (!pll)
+		return -ENODEV;
+
+	if (pll->num_of_frequency == ARRAY_SIZE(g3d_pll_freqs) && pll->frequency_list &&
+	    !memcmp(pll->frequency_list, g3d_pll_freqs, sizeof(g3d_pll_freqs))) {
+		return 0;
+	}
+
+	new_list = kmemdup(g3d_pll_freqs, sizeof(g3d_pll_freqs), GFP_KERNEL);
+	if (!new_list)
+		return -ENOMEM;
+
+	kfree(override_list);
+	override_list = new_list;
+
+	pll->frequency_list = override_list;
+	pll->num_of_frequency = ARRAY_SIZE(g3d_pll_freqs);
+
+	return 0;
+}
+
+static int ect_override_minmax_dvfs_g3d_maxfreq(u32 new_max_khz)
+{
+	void *gen_blk;
+	struct ect_gen_param_table *minmax;
+	u32 *oldp, *newp;
+	int rows, cols, i;
+
+	/* Keep allocated override alive */
+	static u32 *override_minmax;
+	static size_t override_minmax_bytes;
+
+	gen_blk = ect_get_block(BLOCK_GEN_PARAM);
+	if (!gen_blk) {
+		pr_warn("[ECT] minmax override: GEN_PARAM block missing\n");
+		return -ENODEV;
+	}
+
+	minmax = ect_gen_param_get_table(gen_blk, "MINMAX_dvfs_g3d");
+	if (!minmax || !minmax->parameter) {
+		pr_warn("[ECT] minmax override: table MINMAX_dvfs_g3d missing\n");
+		return -ENODEV;
+	}
+
+	rows = minmax->num_of_row;
+	cols = minmax->num_of_col;
+
+	if (rows <= 0 || rows > 1024 || cols <= MINMAX_MAX_FREQ || cols > 64) {
+		pr_err("[ECT] minmax override: suspicious shape rows=%d cols=%d\n", rows, cols);
+		return -EINVAL;
+	}
+
+	oldp = (u32 *)minmax->parameter;
+
+	/* clone current table */
+	override_minmax_bytes = (size_t)rows * (size_t)cols * sizeof(u32);
+	newp = kmemdup(oldp, override_minmax_bytes, GFP_KERNEL);
+	if (!newp)
+		return -ENOMEM;
+
+	/* replace previous override buffer */
+	kfree(override_minmax);
+	override_minmax = newp;
+
+	/* Force MAX freq column for every row */
+	for (i = 0; i < rows; i++) {
+		u32 *rowp = &override_minmax[i * cols];
+		rowp[MINMAX_MAX_FREQ] = new_max_khz;
+	}
+
+	minmax->parameter = override_minmax;
+
+	return 0;
 }
