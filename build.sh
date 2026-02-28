@@ -17,13 +17,147 @@ Options:
     -m, --model [value]     Specify the model code of the phone
     -k, --ksu [Y/n]         Include KernelSU
     -r, --recovery [y/N]    Compile kernel for an Android Recovery
+    -g, --gpu-max [value]   Set GPU max MHz (ex: 806) using forOC tables (default: 702)
 EOF
 }
+
+apply_gpu_tables()
+{
+    local max_khz="$1"
+    local src_dtsi="$PWD/forOC/exynos9820-mali_tables.dtsi"
+    local dst_dtsi="$PWD/arch/arm64/boot/dts/exynos/exynos9820-mali_tables.dtsi"
+    local src_cal="$PWD/forOC/g3d_dvfs_table.h"
+    local dst_cal="$PWD/drivers/soc/samsung/cal-if/g3d_dvfs_table.h"
+
+    if [ ! -f "$src_dtsi" ] || [ ! -f "$src_cal" ]; then
+        echo "GPU table sources not found under forOC; skipping GPU table update."
+        return 1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 not found; cannot update GPU tables."
+        return 1
+    fi
+
+    python3 - "$max_khz" "$src_dtsi" "$dst_dtsi" "$src_cal" "$dst_cal" << 'PY'
+import re
+import sys
+from pathlib import Path
+
+max_khz = int(sys.argv[1])
+src_dtsi = Path(sys.argv[2])
+dst_dtsi = Path(sys.argv[3])
+src_cal = Path(sys.argv[4])
+dst_cal = Path(sys.argv[5])
+
+def parse_table(lines, key):
+    start = next(i for i, l in enumerate(lines) if key in l)
+    end = next(i for i in range(start + 1, len(lines)) if ">;" in lines[i])
+    entries = []
+    indent = None
+    for line in lines[start + 1:end + 1]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("/*"):
+            continue
+        cleaned = re.sub(r">;\s*$", "", stripped)
+        cleaned = re.sub(r">\s*$", "", cleaned)
+        parts = cleaned.split()
+        if not parts or not parts[0].isdigit():
+            continue
+        freq = int(parts[0])
+        if indent is None:
+            indent = line[:len(line) - len(line.lstrip())]
+        entries.append((freq, cleaned))
+    if indent is None:
+        indent = "\t"
+    return start, end, entries, indent
+
+def update_size_line(line, row, cols):
+    return re.sub(r"<\s*\d+\s+%d\s*>" % cols, f"<{row} {cols}>", line)
+
+def update_clock_line(line, value):
+    return re.sub(r"<\s*\d+\s*>", f"<{value}>", line)
+
+def write_dtsi():
+    lines = src_dtsi.read_text().splitlines(True)
+    start, end, entries, indent = parse_table(lines, "gpu_dvfs_table = <")
+    filtered = [e for e in entries if e[0] <= max_khz]
+    if not any(e[0] == max_khz for e in filtered):
+        raise SystemExit(f"GPU max {max_khz} not found in DVFS table")
+    dvfs_block = []
+    for idx, (_, cleaned) in enumerate(filtered):
+        suffix = " >;\n" if idx == len(filtered) - 1 else "\n"
+        dvfs_block.append(f"{indent}{cleaned}{suffix}")
+    lines[start + 1:end + 1] = dvfs_block
+
+    start, end, entries, indent = parse_table(lines, "gpu_cl_pmqos_table = <")
+    filtered_cl = [e for e in entries if e[0] <= max_khz]
+    if not any(e[0] == max_khz for e in filtered_cl):
+        raise SystemExit(f"GPU max {max_khz} not found in PMQoS table")
+    cl_block = []
+    for idx, (_, cleaned) in enumerate(filtered_cl):
+        suffix = " >;\n" if idx == len(filtered_cl) - 1 else "\n"
+        cl_block.append(f"{indent}{cleaned}{suffix}")
+    lines[start + 1:end + 1] = cl_block
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("gpu_dvfs_table_size"):
+            lines[i] = update_size_line(line, len(filtered), 8)
+        elif line.strip().startswith("gpu_cl_pmqos_table_size"):
+            lines[i] = update_size_line(line, len(filtered_cl), 5)
+        elif line.strip().startswith("gpu_max_clock_limit"):
+            lines[i] = update_clock_line(line, max_khz)
+        elif line.strip().startswith("gpu_max_clock"):
+            lines[i] = update_clock_line(line, max_khz)
+
+    dst_dtsi.write_text("".join(lines))
+
+def write_cal():
+    lines = src_cal.read_text().splitlines(True)
+    start = next(i for i, l in enumerate(lines)
+                 if "G3D_DVFS_TABLE_ENTRY_LIST" in l)
+    i = start + 1
+    entries = []
+    indent = None
+    while i < len(lines):
+        line = lines[i]
+        if line.strip().startswith("#endif") or not line.strip():
+            break
+        m = re.search(r"\bX\((\d+),", line)
+        if m:
+            if indent is None:
+                indent = line[:len(line) - len(line.lstrip())]
+            entries.append((int(m.group(1)), line))
+        i += 1
+    if indent is None:
+        indent = "\t"
+    filtered = [(f, l) for (f, l) in entries if f <= max_khz]
+    if not any(f == max_khz for f, _ in filtered):
+        raise SystemExit(f"GPU max {max_khz} not found in CAL table")
+    new_list = []
+    for idx, (_, line) in enumerate(filtered):
+        core = line.rstrip().rstrip("\\").rstrip()
+        suffix = "\n" if idx == len(filtered) - 1 else "                               \\\n"
+        new_list.append(f"{indent}{core}{suffix}")
+    lines[start + 1:i] = new_list
+    dst_cal.write_text("".join(lines))
+
+write_dtsi()
+write_cal()
+PY
+}
+
+DEFAULT_GPU_MAX_BEYOND=702
+DEFAULT_GPU_MAX_D=754
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model|-m)
             MODEL="$2"
+            shift 2
+            ;;
+        --gpu-max|-g)
+            GPU_MAX="$2"
             shift 2
             ;;
         --ksu|-k)
@@ -34,7 +168,7 @@ while [[ $# -gt 0 ]]; do
             RECOVERY_OPTION="$2"
             shift 2
             ;;
-        *)\
+        *)
             unset_flags
             exit 1
             ;;
@@ -65,12 +199,25 @@ if [ ! -f "$CLANG_DIR/bin/clang-20" ]; then
     popd > /dev/null
 fi
 
-MAKE_ARGS="
-LLVM=1 \
-LLVM_IAS=1 \
-ARCH=arm64 \
-O=out
-"
+MAKE_ARGS=(
+    LLVM=1
+    LLVM_IAS=1
+    ARCH=arm64
+    O=out
+)
+
+# Prefer content-addressed compiler cache so rebuilds in fresh checkouts are fast
+if command -v ccache >/dev/null 2>&1; then
+    echo "ccache detected, enabling compiler cache..."
+    export CCACHE_DIR="${CCACHE_DIR:-$PWD/.ccache}"
+    export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$PWD}"
+    export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+    export CCACHE_NOHASHDIR="${CCACHE_NOHASHDIR:-1}"
+    export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-file_macro,locale,time_macros}"
+    MAKE_ARGS+=(CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++")
+else
+    echo "ccache not found, building without compiler cache."
+fi
 
 # Define specific variables
 case $MODEL in
@@ -78,16 +225,32 @@ beyond0lte)
     BOARD=SRPRI28A016KU
     SOC=exynos9820
 ;;
+beyond0lteks)
+    BOARD=SRPRI28C007KU
+    SOC=exynos9820
+;;
 beyond1lte)
     BOARD=SRPRI28B016KU
+    SOC=exynos9820
+;;
+beyond1lteks)
+    BOARD=SRPRI28D007KU
     SOC=exynos9820
 ;;
 beyond2lte)
     BOARD=SRPRI17C016KU
     SOC=exynos9820
 ;;
+beyond2lteks)
+    BOARD=SRPRI28E007KU
+    SOC=exynos9820
+;;
 beyondx)
     BOARD=SRPSC04B014KU
+    SOC=exynos9820
+;;
+beyondxks)
+    BOARD=SRPRK21D006KU
     SOC=exynos9820
 ;;
 d1)
@@ -115,10 +278,6 @@ d2xks)
     exit
 esac
 
-if [[ "$MODEL" == "d2xks" ]]; then
-    MODEL=d2x
-fi
-
 if [[ "$RECOVERY_OPTION" == "y" ]]; then
     RECOVERY=recovery.config
     KSU_OPTION=n
@@ -130,6 +289,28 @@ fi
 
 if [[ "$KSU_OPTION" == "y" ]]; then
     KSU=ksu.config
+fi
+
+if [ -z "$GPU_MAX" ]; then
+    if [[ "$MODEL" == d* ]]; then
+        GPU_MAX=$DEFAULT_GPU_MAX_D
+    else
+        GPU_MAX=$DEFAULT_GPU_MAX_BEYOND
+    fi
+fi
+
+if [ -n "$GPU_MAX" ]; then
+    if ! [[ "$GPU_MAX" =~ ^[0-9]+$ ]]; then
+        echo "Invalid GPU max value: $GPU_MAX"
+        exit 1
+    fi
+        if [ "$GPU_MAX" -lt 10000 ]; then
+            GPU_MAX_KHZ=$((GPU_MAX * 1000))
+        else
+            GPU_MAX_KHZ=$GPU_MAX
+        fi
+        echo "Applying GPU max: ${GPU_MAX_KHZ} kHz (from forOC tables)"
+        apply_gpu_tables "$GPU_MAX_KHZ" || abort
 fi
 
 rm -rf build/out/$MODEL
@@ -156,11 +337,11 @@ echo "-----------------------------------------------"
 echo "Building kernel using "$KERNEL_DEFCONFIG""
 echo "Generating configuration file..."
 echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
+make "${MAKE_ARGS[@]}" -j$CORES exynos9820_defconfig $MODEL.config $KSU $RECOVERY || abort
 
 echo "Building kernel..."
 echo "-----------------------------------------------"
-make ${MAKE_ARGS} -j$CORES || abort
+make "${MAKE_ARGS[@]}" -j$CORES || abort
 
 # Define constant variables
 KERNEL_PATH=build/out/$MODEL/Image
@@ -244,11 +425,14 @@ if [ -z "$RECOVERY" ]; then
     DATE=`date +"%d-%m-%Y_%H-%M-%S"`    
 
     if [[ "$KSU_OPTION" == "y" ]]; then
-        NAME="$version"_"$MODEL"_UNOFFICIAL_KSU_"$DATE".zip
+        NAME="$version"_"$MODEL"_OFFICIAL_KSU_"$DATE".zip
     else
-        NAME="$version"_"$MODEL"_UNOFFICIAL_"$DATE".zip
+        NAME="$version"_"$MODEL"_OFFICIAL_"$DATE".zip
     fi
-    zip -r ../"$NAME" .
+
+    # Store the generated archive inside the zip directory so CI artifact
+    # uploads can glob the file reliably.
+    zip -r "$NAME" .
     popd > /dev/null
 fi
 

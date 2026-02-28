@@ -76,6 +76,7 @@ modules.builtin
 !.gitignore
 !.mailmap
 !.cocciconfig
+!.github
 
 #
 # Generated include files
@@ -124,3 +125,8 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+# local build outputs/toolchains
+/build/out/
+/out/
+/toolchain/

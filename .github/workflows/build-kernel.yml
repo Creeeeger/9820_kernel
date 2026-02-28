@@ -1,0 +1,156 @@
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model (code + device name)
+        required: true
+        default: beyondx (Galaxy S10 5G)
+        type: choice
+        options:
+          - beyond0lte (Galaxy S10e)
+          - beyond0lteks (Galaxy S10e Korea)
+          - beyond1lte (Galaxy S10)
+          - beyond1lteks (Galaxy S10 Korea)
+          - beyond2lte (Galaxy S10+)
+          - beyond2lteks (Galaxy S10+ Korea)
+          - beyondx (Galaxy S10 5G)
+          - beyondxks (Galaxy S10 5G Korea)
+          - d1 (Galaxy Note10)
+          - d1xks (Galaxy Note10 5G)
+          - d2s (Galaxy Note10+)
+          - d2x (Galaxy Note10+ 5G)
+          - d2xks (Galaxy Note10+ 5G Korea)
+      include_ksu:
+        description: Include KernelSU
+        required: true
+        default: y
+        type: choice
+        options:
+          - y
+          - n
+      recovery:
+        description: Compile for Android Recovery (disables KernelSU)
+        required: true
+        default: n
+        type: choice
+        options:
+          - n
+          - y
+      gpu_max:
+        description: "GPU max MHz (for OC tables, default: 702)"
+        required: true
+        default: "702"
+        type: choice
+        options:
+          - "100"
+          - "156"
+          - "200"
+          - "260"
+          - "325"
+          - "377"
+          - "433"
+          - "572"
+          - "598"
+          - "650"
+          - "676"
+          - "702"
+          - "754"
+          - "806"
+          - "858"
+          - "910"
+          - "962"
+          - "1014"
+          - "1066"
+          - "1092"
+          - "1118"
+          - "1144"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Resolve model code
+        id: model
+        shell: bash
+        run: |
+          MODEL_CODE="${{ inputs.model }}"
+          MODEL_CODE="${MODEL_CODE%% *}"
+          echo "model_code=$MODEL_CODE" >> "$GITHUB_OUTPUT"
+          echo "Selected model input: ${{ inputs.model }}"
+          echo "Resolved model code: $MODEL_CODE"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc \
+            bison \
+            build-essential \
+            ccache \
+            clang \
+            cpio \
+            flex \
+            libelf-dev \
+            libncurses-dev \
+            libssl-dev \
+            lld \
+            llvm \
+            python3 \
+            rsync \
+            unzip \
+            wget \
+            zip \
+            zstd
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ steps.model.outputs.model_code }}-${{ inputs.include_ksu }}-${{ inputs.recovery }}-${{ inputs.gpu_max }}-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ steps.model.outputs.model_code }}-
+
+      - name: Configure ccache
+        run: |
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "CCACHE_COMPILERCHECK=content" >> "$GITHUB_ENV"
+          echo "CCACHE_NOHASHDIR=1" >> "$GITHUB_ENV"
+          echo "CCACHE_SLOPPINESS=file_macro,locale,time_macros" >> "$GITHUB_ENV"
+          ccache --max-size=3G
+          ccache -s
+
+      - name: Build kernel
+        run: |
+          chmod +x build.sh
+          ./build.sh \
+            --model "${{ steps.model.outputs.model_code }}" \
+            --ksu "${{ inputs.include_ksu }}" \
+            --recovery "${{ inputs.recovery }}" \
+            --gpu-max "${{ inputs.gpu_max }}"
+
+      - name: ccache stats after build
+        run: ccache -s
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-${{ steps.model.outputs.model_code }}-ksu${{ inputs.include_ksu }}-rec${{ inputs.recovery }}-gpu${{ inputs.gpu_max }}
+          path: |
+            build/out/**/Image
+            build/out/**/boot.img
+            build/out/**/dtb.img
+            build/out/**/dtbo.img
+            build/out/**/zip/*.zip
+          if-no-files-found: warn
