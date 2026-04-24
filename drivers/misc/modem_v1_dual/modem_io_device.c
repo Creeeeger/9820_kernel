@@ -33,7 +33,6 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/netdevice.h>
-#include <uapi/linux/net_dropdump.h>
 
 #ifdef CONFIG_SEC_SIPC_DUAL_MODEM_IF
 #include <linux/modem_notifier.h>
@@ -1466,7 +1465,6 @@ retry:
 drop:
 	ndev->stats.tx_dropped++;
 
-	DROPDUMP_QPCAP_SKB(skb, NET_DROPDUMP_OPT_MIF_TXFAIL);
 	dev_kfree_skb_any(skb);
 
 	/*

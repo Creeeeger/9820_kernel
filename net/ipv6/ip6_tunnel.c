@@ -691,7 +691,7 @@ ip6ip6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 
 		/* Try to guess incoming interface */
 		rt = rt6_lookup(dev_net(skb->dev), &ipv6_hdr(skb2)->saddr,
-				NULL, 0, 0);
+				NULL, 0, skb2, 0);
 
 		if (rt && rt->dst.dev)
 			skb2->dev = rt->dst.dev;
@@ -862,7 +862,6 @@ static int __ip6_tnl_rcv(struct ip6_tnl *tunnel, struct sk_buff *skb,
 drop:
 	if (tun_dst)
 		dst_release((struct dst_entry *)tun_dst);
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_OPT_IP_TUNERROR);
 	kfree_skb(skb);
 	return 0;
 }
@@ -880,7 +879,7 @@ int ip6_tnl_rcv(struct ip6_tnl *t, struct sk_buff *skb,
 	if (tpi->proto == htons(ETH_P_IP))
 		dscp_ecn_decapsulate = ip4ip6_dscp_ecn_decapsulate;
 
-	return __ip6_tnl_rcv(t, skb, tpi, NULL, dscp_ecn_decapsulate,
+	return __ip6_tnl_rcv(t, skb, tpi, tun_dst, dscp_ecn_decapsulate,
 			     log_ecn_err);
 }
 EXPORT_SYMBOL(ip6_tnl_rcv);
@@ -936,7 +935,6 @@ static int ipxip6_rcv(struct sk_buff *skb, u8 ipproto,
 
 drop:
 	rcu_read_unlock();
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_OPT_IP_TUNERROR1);
 	kfree_skb(skb);
 	return 0;
 }
@@ -999,6 +997,9 @@ int ip6_tnl_xmit_ctl(struct ip6_tnl *t,
 	struct __ip6_tnl_parm *p = &t->parms;
 	int ret = 0;
 	struct net *net = t->net;
+
+	if (t->parms.collect_md)
+		return 1;
 
 	if ((p->flags & IP6_TNL_F_CAP_XMIT) ||
 	    ((p->flags & IP6_TNL_F_CAP_PER_PACKET) &&
@@ -1419,7 +1420,6 @@ ip6_tnl_start_xmit(struct sk_buff *skb, struct net_device *dev)
 tx_err:
 	stats->tx_errors++;
 	stats->tx_dropped++;
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_OPT_IP_TUNERROR2);
 	kfree_skb(skb);
 	return NETDEV_TX_OK;
 }
@@ -1464,7 +1464,7 @@ static void ip6_tnl_link_config(struct ip6_tnl *t)
 
 		struct rt6_info *rt = rt6_lookup(t->net,
 						 &p->raddr, &p->laddr,
-						 p->link, strict);
+						 p->link, NULL, strict);
 
 		if (!rt)
 			return;
@@ -2196,17 +2196,16 @@ static struct xfrm6_tunnel ip6ip6_handler __read_mostly = {
 	.priority	=	1,
 };
 
-static void __net_exit ip6_tnl_destroy_tunnels(struct net *net)
+static void __net_exit ip6_tnl_destroy_tunnels(struct net *net, struct list_head *list)
 {
 	struct ip6_tnl_net *ip6n = net_generic(net, ip6_tnl_net_id);
 	struct net_device *dev, *aux;
 	int h;
 	struct ip6_tnl *t;
-	LIST_HEAD(list);
 
 	for_each_netdev_safe(net, dev, aux)
 		if (dev->rtnl_link_ops == &ip6_link_ops)
-			unregister_netdevice_queue(dev, &list);
+			unregister_netdevice_queue(dev, list);
 
 	for (h = 0; h < IP6_TUNNEL_HASH_SIZE; h++) {
 		t = rtnl_dereference(ip6n->tnls_r_l[h]);
@@ -2215,12 +2214,10 @@ static void __net_exit ip6_tnl_destroy_tunnels(struct net *net)
 			 * been added to the list by the previous loop.
 			 */
 			if (!net_eq(dev_net(t->dev), net))
-				unregister_netdevice_queue(t->dev, &list);
+				unregister_netdevice_queue(t->dev, list);
 			t = rtnl_dereference(t->next);
 		}
 	}
-
-	unregister_netdevice_many(&list);
 }
 
 static int __net_init ip6_tnl_init_net(struct net *net)
@@ -2264,16 +2261,21 @@ err_alloc_dev:
 	return err;
 }
 
-static void __net_exit ip6_tnl_exit_net(struct net *net)
+static void __net_exit ip6_tnl_exit_batch_net(struct list_head *net_list)
 {
+	struct net *net;
+	LIST_HEAD(list);
+
 	rtnl_lock();
-	ip6_tnl_destroy_tunnels(net);
+	list_for_each_entry(net, net_list, exit_list)
+		ip6_tnl_destroy_tunnels(net, &list);
+	unregister_netdevice_many(&list);
 	rtnl_unlock();
 }
 
 static struct pernet_operations ip6_tnl_net_ops = {
 	.init = ip6_tnl_init_net,
-	.exit = ip6_tnl_exit_net,
+	.exit_batch = ip6_tnl_exit_batch_net,
 	.id   = &ip6_tnl_net_id,
 	.size = sizeof(struct ip6_tnl_net),
 };

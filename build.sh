@@ -47,23 +47,20 @@ pushd $(dirname "$0") > /dev/null
 CORES=`cat /proc/cpuinfo | grep -c processor`
 
 # Define toolchain variables
-CLANG_DIR=$PWD/toolchain/neutron_18
+CLANG_DIR=$PWD/toolchain/clang-r547379
 PATH=$CLANG_DIR/bin:$PATH
 
 # Check if toolchain exists
-if [ ! -f "$CLANG_DIR/bin/clang-18" ]; then
+if [ ! -f "$CLANG_DIR/bin/clang-20" ]; then
     echo "-----------------------------------------------"
     echo "Toolchain not found! Downloading..."
     echo "-----------------------------------------------"
     rm -rf $CLANG_DIR
     mkdir -p $CLANG_DIR
-    pushd toolchain/neutron_18 > /dev/null
-    bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S=05012024
-    echo "-----------------------------------------------"
-    echo "Patching toolchain..."
-    echo "-----------------------------------------------"
-    bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") --patch=glibc
-    echo "-----------------------------------------------"
+    pushd $CLANG_DIR > /dev/null
+    curl -LJOk https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz
+    tar xf main-clang-r547379.tar.gz
+    rm main-clang-r547379.tar.gz
     echo "Cleaning up..."
     popd > /dev/null
 fi
@@ -176,7 +173,7 @@ CMDLINE='loop.max_part=7'
 HASHTYPE=sha1
 HEADER_VERSION=1
 OS_PATCH_LEVEL=2025-08
-OS_VERSION=15.0.0
+OS_VERSION=16.0.0
 PAGESIZE=2048
 RAMDISK=build/out/$MODEL/ramdisk.cpio.gz
 OUTPUT_FILE=build/out/$MODEL/boot.img

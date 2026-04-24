@@ -517,7 +517,6 @@ packet_routed:
 no_route:
 	rcu_read_unlock();
 	IP_INC_STATS(net, IPSTATS_MIB_OUTNOROUTES);
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_OUTNOROUTES1);
 	kfree_skb(skb);
 	return -EHOSTUNREACH;
 }
@@ -543,7 +542,6 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 	to->tc_index = from->tc_index;
 #endif
 	nf_copy(to, from);
-	skb_ext_copy(to, from);
 #if IS_ENABLED(CONFIG_IP_VS)
 	to->ipvs_property = from->ipvs_property;
 #endif
@@ -563,7 +561,6 @@ static int ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		     (IPCB(skb)->frag_max_size &&
 		      IPCB(skb)->frag_max_size > mtu))) {
 		IP_INC_STATS(net, IPSTATS_MIB_FRAGFAILS);
-		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_FRAGFAILS5);
 		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
 			  htonl(mtu));
 		kfree_skb(skb);
@@ -704,8 +701,6 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 			return 0;
 		}
 
-		DROPDUMP_QUEUE_SKB(frag, NET_DROPDUMP_IPSTATS_MIB_FRAGFAILS6);
-
 		while (frag) {
 			skb = frag->next;
 			kfree_skb(frag);
@@ -835,7 +830,6 @@ slow_path:
 	return err;
 
 fail:
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_FRAGFAILS7);
 	kfree_skb(skb);
 	IP_INC_STATS(net, IPSTATS_MIB_FRAGFAILS);
 	return err;

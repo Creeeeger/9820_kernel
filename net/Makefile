@@ -21,6 +21,7 @@ obj-$(CONFIG_TLS)		+= tls/
 obj-$(CONFIG_XFRM)		+= xfrm/
 obj-$(CONFIG_UNIX_SCM)		+= unix/
 obj-$(CONFIG_NET)		+= ipv6/
+obj-$(CONFIG_BPFILTER)		+= bpfilter/
 obj-$(CONFIG_PACKET)		+= packet/
 obj-$(CONFIG_NET_KEY)		+= key/
 obj-$(CONFIG_BRIDGE)		+= bridge/
@@ -86,6 +87,7 @@ obj-y				+= l3mdev/
 endif
 obj-$(CONFIG_QRTR)		+= qrtr/
 obj-$(CONFIG_NET_NCSI)		+= ncsi/
+obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 # SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 obj-$(CONFIG_KNOX_NCM)		+= ncm/
 # SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }

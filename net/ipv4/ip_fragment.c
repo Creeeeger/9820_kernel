@@ -494,7 +494,6 @@ int ip_defrag(struct net *net, struct sk_buff *skb, u32 user)
 	}
 
 	__IP_INC_STATS(net, IPSTATS_MIB_REASMFAILS);
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_REASMFAILS);
 	kfree_skb(skb);
 	return -ENOMEM;
 }

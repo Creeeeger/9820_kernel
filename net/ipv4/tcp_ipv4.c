@@ -630,8 +630,6 @@ static void tcp_v4_send_reset(const struct sock *sk, struct sk_buff *skb)
 #endif
 	struct net *net;
 
-	DROPDUMP_CLEAR_SKB(skb);
-
 	/* Never send a reset in response to a reset. */
 	if (th->rst)
 		return;
@@ -1548,7 +1546,6 @@ discard:
 csum_err:
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_CSUMERRORS);
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
-	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_TCP_MIB_INERRS3);
 	goto discard;
 }
 EXPORT_SYMBOL(tcp_v4_do_rcv);
@@ -1612,7 +1609,6 @@ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 	if (unlikely(sk_add_backlog(sk, skb, limit))) {
 		bh_unlock_sock(sk);
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
-		DROPDUMP_QPCAP_SKB(skb, NET_DROPDUMP_OPT_TCP_BACKLOGDROP1);
 		return true;
 	}
 	return false;
@@ -1752,7 +1748,6 @@ process:
 	}
 	if (unlikely(iph->ttl < inet_sk(sk)->min_ttl)) {
 		__NET_INC_STATS(net, LINUX_MIB_TCPMINTTLDROP);
-		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_TCP_MIB_MINTTLDROP);
 		goto discard_and_relse;
 	}
 
@@ -1804,17 +1799,14 @@ no_tcp_socket:
 	if (tcp_checksum_complete(skb)) {
 csum_error:
 		__TCP_INC_STATS(net, TCP_MIB_CSUMERRORS);
-		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_TCP_MIB_CSUMERRORS);
 bad_packet:
 		__TCP_INC_STATS(net, TCP_MIB_INERRS);
-		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_TCP_MIB_INERRS4);
 	} else {
 		tcp_v4_send_reset(NULL, skb);
 	}
 
 discard_it:
 	/* Discard frame. */
-	DROPDUMP_CHECK_SKB(skb);
 	kfree_skb(skb);
 	return 0;
 
@@ -2494,6 +2486,8 @@ static void __net_exit tcp_sk_exit(struct net *net)
 {
 	int cpu;
 
+	module_put(net->ipv4.tcp_congestion_control->owner);
+
 	for_each_possible_cpu(cpu)
 		inet_ctl_sock_destroy(*per_cpu_ptr(net->ipv4.tcp_sk, cpu));
 	free_percpu(net->ipv4.tcp_sk);
@@ -2558,6 +2552,18 @@ static int __net_init tcp_sk_init(struct net *net)
 	net->ipv4.sysctl_tcp_default_init_rwnd = TCP_INIT_CWND * 2;
 	net->ipv4.sysctl_tcp_early_retrans = 3;
 
+	net->ipv4.sysctl_tcp_fastopen = TFO_CLIENT_ENABLE;
+	spin_lock_init(&net->ipv4.tcp_fastopen_ctx_lock);
+	net->ipv4.sysctl_tcp_fastopen_blackhole_timeout = 60 * 60;
+	atomic_set(&net->ipv4.tfo_active_disable_times, 0);
+
+	/* Reno is always built in */
+	if (!net_eq(net, &init_net) &&
+	    try_module_get(init_net.ipv4.tcp_congestion_control->owner))
+		net->ipv4.tcp_congestion_control = init_net.ipv4.tcp_congestion_control;
+	else
+		net->ipv4.tcp_congestion_control = &tcp_reno;
+
 	return 0;
 fail:
 	tcp_sk_exit(net);
@@ -2567,7 +2573,12 @@ fail:
 
 static void __net_exit tcp_sk_exit_batch(struct list_head *net_exit_list)
 {
+	struct net *net;
+
 	inet_twsk_purge(&tcp_hashinfo, AF_INET);
+
+	list_for_each_entry(net, net_exit_list, exit_list)
+		tcp_fastopen_ctx_destroy(net);
 }
 
 static struct pernet_operations __net_initdata tcp_sk_ops = {

@@ -14,6 +14,7 @@ obj-y		     += dev.o ethtool.o dev_addr_lists.o dst.o netevent.o \
 			fib_notifier.o xdp.o
 
 obj-y += net-sysfs.o
+obj-$(CONFIG_PAGE_POOL) += page_pool.o
 obj-$(CONFIG_PROC_FS) += net-procfs.o
 obj-$(CONFIG_NET_SOCK_MSG) += skmsg.o
 obj-$(CONFIG_NET_PKTGEN) += pktgen.o
@@ -32,5 +33,4 @@ obj-$(CONFIG_DST_CACHE) += dst_cache.o
 obj-$(CONFIG_HWBM) += hwbm.o
 obj-$(CONFIG_NET_DEVLINK) += devlink.o
 obj-$(CONFIG_GRO_CELLS) += gro_cells.o
-obj-$(CONFIG_NET_SUPPORT_DROPDUMP) += drop_dump.o
 obj-$(CONFIG_BPF_SYSCALL) += bpf_sk_storage.o
