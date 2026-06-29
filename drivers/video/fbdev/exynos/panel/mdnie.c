@@ -949,8 +949,8 @@ static ssize_t whiteRGB_store(struct device *dev,
 		 __func__, wr_offset, wg_offset, wb_offset);
 
 	mutex_lock(&mdnie->lock);
-	mdnie->props.def_wrgb_ofs[0] = wr_offset-14;
-	mdnie->props.def_wrgb_ofs[1] = wg_offset-35;
+	mdnie->props.def_wrgb_ofs[0] = wr_offset;
+	mdnie->props.def_wrgb_ofs[1] = wg_offset;
 	mdnie->props.def_wrgb_ofs[2] = wb_offset;
 	mutex_unlock(&mdnie->lock);
 	mdnie_update(mdnie);
