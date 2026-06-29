@@ -857,8 +857,7 @@
 		compatible = "samsung,exynos-hiu";
 		interrupts = <0 INTREQ__CPUCL2_GCUIRQ 0>;
 		boot-freq = <1378000>;
-		boost-threshold = <1560000>;
-		boost-max = <1560000>;
+		boost-threshold = <2080000>;
 		cal-id = <ACPM_DVFS_CPUCL2>;
 		sw-pbl = <0x57>;
 		bl1-inc = <0>;
@@ -886,7 +885,7 @@
 		interrupts = <0 INTREQ__CPUCL2_GCUIRQ 0>;
 		boot-freq = <1378000>;
 		boost-threshold = <1456000>;
-		boost-max = <1560000>;
+		boost-max = <2080000>;
 		sw-pbl = <0x36>;
 		bl1-inc = <3>;
 		bl2-inc = <2>;
@@ -1199,7 +1198,7 @@
 		sibling-cpus = "6-7";
 		down-step = <1>;
 
-		max-freq-wo-ocp = <1560000>;
+		max-freq-wo-ocp = <2080000>;
 
 		release-mode = <1>;		/* 0 : current meter, 1 : cpu utilization */
 		release-threshold = <53>;	/* @current meter : current(A), @cpu load : capacity ratio(%) */
@@ -4885,7 +4884,7 @@
 			emc_mode_0 {
 				mode_name = "QUAD";
 				cpus = "0-7";
-				max_freq = <1560000>;
+				max_freq = <2080000>;
 				boost_cpus = "6-7";
 				change_latency = <15>;
 				enabled = <1>;
@@ -4894,7 +4893,7 @@
 				mode_name = "DUAL";
 				cpus = "0-3,6-7";
 				boost_cpus = "6-7";
-				max_freq = <1560000>;
+				max_freq = <2340000>;
 				change_latency = <30>;
 				ldsum_thr = <1200>;
 				enabled = <1>;
@@ -4904,7 +4903,7 @@
 				cpus = "0-3,6";
 				boost_cpus = "6";
 				cal-id = <ACPM_DVFS_CPUCL2>;
-				max_freq = <1560000>;
+				max_freq = <2730000>;
 				change_latency = <30>;
 				enabled = <1>;
 			};
@@ -4990,7 +4989,7 @@
 			device_type = "freqvar-tune";
 			shared-cpus = "6-7";
 
-			boost_table = < 160 728000 123 936000 100 >;
+			boost_table = < 160 936000 123 1378000 100 >;
 			up_rate_limit_table = < 4 >;
 			down_rate_limit_table = < 4 >;
 			st_table = < 5 >;
@@ -5093,7 +5092,7 @@
 			device_type = "cpufreq-userctrl";
 			shared-cpus = "6-7";
 
-			user-default-qos = <728000>;
+			user-default-qos = <936000>;
 			user-boost = <2>;
 			ucc-index = <2>;
 			user-boost-game = <2>;
@@ -5301,14 +5300,14 @@
 			dm-type = <DM_CPU_CL2>;
 			need-awake;
 
-			max-freq = <1560000>;
+			max-freq = <2080000>;
 			min-freq = <520000>;
 
 			/* PM QoS Class ID*/
 			pm_qos-min-class = <7>;
 			pm_qos-max-class = <8>;
 
-			pm_qos-booting = <1560000>;
+			pm_qos-booting = <2080000>;
 
 			#cooling-cells = <2>; /* min followed by max */
 
